@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Canvas Auto Exporter",
+  "version": "1.0",
+  "description": "Automatically exports Canvas LMS data to a local server.",
+  "permissions": ["scripting", "activeTab", "storage", "tabs"],
+  "host_permissions": [
+    "https://*.instructure.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.instructure.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
