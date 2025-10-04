@@ -24,7 +24,11 @@ class BaseAgent:
     def __init__(self, name: str = "Basic Agent", llm = None, tools: list = [], system_prompt: str = None):
         self.name = name
         self.llm = llm or ChatGoogleGenerativeAI(model = GEMINI_MODEL, google_api_key = GEMINI_API_KEY)
-        self.tools = tools
+        self.tools = tools + [
+            BaseAgent.take_notes,
+            BaseAgent.read_notes,
+            tool(GOOGLE_HELPER.make_google_search())
+        ]
         self.tool_node = ToolNode(tools)
 
         class AgentState(TypedDict):

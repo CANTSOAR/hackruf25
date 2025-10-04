@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Scheduler</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <h1>AI Agent Scheduler</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="settingsBtn">
+                        <i class="fas fa-cog"></i>
+                        <span class="btn-text">Settings</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-content">
+                    <nav class="nav">
+                        <button class="nav-item active" data-tab="chat">
+                            <i class="fas fa-comments"></i>
+                            <span>Chat</span>
+                        </button>
+                        <button class="nav-item" data-tab="assignments">
+                            <i class="fas fa-tasks"></i>
+                            <span>Assignments</span>
+                        </button>
+                        <button class="nav-item" data-tab="calendar">
+                            <i class="fas fa-calendar"></i>
+                            <span>Calendar</span>
+                        </button>
+                        <button class="nav-item" data-tab="materials">
+                            <i class="fas fa-folder"></i>
+                            <span>Materials</span>
+                        </button>
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Chat Tab -->
+                <div class="tab-content active" id="chat-tab">
+                    <div class="chat-container">
+                        <div class="chat-header">
+                            <h2>AI Assistant</h2>
+                            <p>Ask me to help with your academic planning and scheduling</p>
+                        </div>
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="message agent-message">
+                                <div class="message-avatar">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="message-content">
+                                    <p>Hello! I'm your AI scheduling assistant. I can help you:</p>
+                                    <ul>
+                                        <li>Process Canvas assignments and create study schedules</li>
+                                        <li>Manage your Google Calendar events</li>
+                                        <li>Find relevant course materials</li>
+                                        <li>Plan your academic goals</li>
+                                    </ul>
+                                    <p>How can I help you today?</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <div class="chat-input">
+                                <textarea id="messageInput" placeholder="Type your message here..." rows="1"></textarea>
+                                <button id="sendBtn" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Assignments Tab -->
+                <div class="tab-content" id="assignments-tab">
+                    <div class="tab-header">
+                        <h2>Canvas Assignments</h2>
+                        <button class="btn btn-primary" id="addAssignmentBtn">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Assignment</span>
+                        </button>
+                    </div>
+                    <div class="assignment-form" id="assignmentForm" style="display: none;">
+                        <div class="form-group">
+                            <label for="assignmentUrl">Assignment URL</label>
+                            <input type="url" id="assignmentUrl" placeholder="https://canvas.university.edu/courses/123/assignments/456">
+                        </div>
+                        <div class="form-group">
+                            <label for="courseId">Course ID (optional)</label>
+                            <input type="text" id="courseId" placeholder="123">
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" id="processAssignmentBtn">
+                                <i class="fas fa-cog"></i>
+                                <span>Process Assignment</span>
+                            </button>
+                            <button class="btn btn-secondary" id="cancelAssignmentBtn">
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="assignments-list" id="assignmentsList">
+                        <div class="empty-state">
+                            <i class="fas fa-tasks"></i>
+                            <h3>No assignments processed yet</h3>
+                            <p>Add a Canvas assignment to get started with your study planning</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar Tab -->
+                <div class="tab-content" id="calendar-tab">
+                    <div class="tab-header">
+                        <h2>Google Calendar</h2>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary" id="refreshCalendarBtn">
+                                <i class="fas fa-sync"></i>
+                                <span>Refresh</span>
+                            </button>
+                            <button class="btn btn-primary" id="addEventBtn">
+                                <i class="fas fa-plus"></i>
+                                <span>Add Event</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="event-form" id="eventForm" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="eventTitle">Event Title</label>
+                                <input type="text" id="eventTitle" placeholder="Study Session">
+                            </div>
+                            <div class="form-group">
+                                <label for="eventCalendar">Calendar</label>
+                                <select id="eventCalendar">
+                                    <option value="primary">Primary Calendar</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="eventStart">Start Time</label>
+                                <input type="datetime-local" id="eventStart">
+                            </div>
+                            <div class="form-group">
+                                <label for="eventEnd">End Time</label>
+                                <input type="datetime-local" id="eventEnd">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="eventDescription">Description</label>
+                            <textarea id="eventDescription" rows="3" placeholder="Optional description..."></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" id="createEventBtn">
+                                <i class="fas fa-calendar-plus"></i>
+                                <span>Create Event</span>
+                            </button>
+                            <button class="btn btn-secondary" id="cancelEventBtn">
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="calendar-events" id="calendarEvents">
+                        <div class="empty-state">
+                            <i class="fas fa-calendar"></i>
+                            <h3>No events found</h3>
+                            <p>Your calendar events will appear here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Materials Tab -->
+                <div class="tab-content" id="materials-tab">
+                    <div class="tab-header">
+                        <h2>Course Materials</h2>
+                        <button class="btn btn-primary" id="refreshMaterialsBtn">
+                            <i class="fas fa-sync"></i>
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                    <div class="materials-list" id="materialsList">
+                        <div class="empty-state">
+                            <i class="fas fa-folder"></i>
+                            <h3>No materials found</h3>
+                            <p>Course materials will appear here after processing assignments</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" id="mobileMenuToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
