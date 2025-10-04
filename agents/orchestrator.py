@@ -1,4 +1,4 @@
-from baseagent import *
+from .baseagent import *
 
 ORCHESTOR = BaseAgent(
     name = "Orchestrator",

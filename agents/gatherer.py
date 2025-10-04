@@ -13,7 +13,7 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from langchain_core.tools import tool
 from dotenv import load_dotenv
-from baseagent import BaseAgent
+from .baseagent import BaseAgent
 
 load_dotenv()
 
