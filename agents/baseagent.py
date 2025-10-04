@@ -117,24 +117,31 @@ class BaseAgent:
     
     @staticmethod
     @tool
-    def take_notes(note: str, open_type: str = "a"):
+    def take_notes(note: str, open_type: str = "a", file: str = "public"):
         """
         Use this tool to take notes, and include the way to open the file, either 'w' or 'a'; the default is 'a' to append to the notes.txt file.
         This could be used to maintain your objective and then ground future responses.
+        You can also choose the file to write the notes in, which is default to a public file that all agents can access.
+        Should you want private notes, include a file name that you will remember and then you can read/write to that.
+        In the public file, please include who you are, so that other agents know who put in what note.
         """
-        with open("./agents/notes/notes.txt", open_type) as f:
-            f.write(note + "\n")
+        with open(f"./agents/notes/{file}.txt", open_type) as f:
+            f.write(str(dt.datetime.now()) + "\n" + note + "\n\n")
 
         return "Note added"
     
     @staticmethod
     @tool
-    def read_notes():
+    def read_notes(file: str = "public"):
         """
         Use this tool to read the current notes file. This should be used to remind yourself of the key objectives and ground your responses.
+        By default it reads from the public file, but you can provide the file name of your private file if you want to read your personal file.
         """
-        with open("./agents/notes/notes.txt", "r") as f:
-            notes = f.read()
+        try:
+            with open(f"./agents/notes/{file}.txt", "r") as f:
+                notes = f.read()
+        except Exception as e:
+            return f"Error: {e}"
 
         return "Current Notes:\n" + notes
 
