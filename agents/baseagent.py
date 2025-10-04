@@ -114,6 +114,29 @@ class BaseAgent:
         self.state = self.graph.invoke(self.state)
 
         return self.state["messages"][-1].content
+    
+    @staticmethod
+    @tool
+    def take_notes(note: str, open_type: str = "a"):
+        """
+        Use this tool to take notes, and include the way to open the file, either 'w' or 'a'; the default is 'a' to append to the notes.txt file.
+        This could be used to maintain your objective and then ground future responses.
+        """
+        with open("./agents/notes/notes.txt", open_type) as f:
+            f.write(note + "\n")
+
+        return "Note added"
+    
+    @staticmethod
+    @tool
+    def read_notes():
+        """
+        Use this tool to read the current notes file. This should be used to remind yourself of the key objectives and ground your responses.
+        """
+        with open("./agents/notes/notes.txt", "r") as f:
+            notes = f.read()
+
+        return "Current Notes:\n" + notes
 
 class GoogleAgent():
 
