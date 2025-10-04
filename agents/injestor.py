@@ -1,4 +1,0 @@
-"""
-Reads everything
-
-"""
