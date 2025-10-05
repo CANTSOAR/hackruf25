@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-pro"
+GEMINI_MODEL = "Gemini 2.5 Flash-Lite"
 
 
 class BaseAgent:

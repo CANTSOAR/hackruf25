@@ -40,8 +40,14 @@ a{text-decoration:none}
 .avatar{ width:28px;height:28px;border-radius:9999px;display:grid;place-items:center;font-size:16px;background:#1f1f2a;border:1px solid #3f3f46 }
 .avatar img{ width:100%;height:100%;object-fit:cover;border-radius:9999px }
 .bubble{ border-radius:16px;padding:10px 14px;line-height:1.45;max-width:72% }
-.bubble-user{ background:#2b2b3b;color:#fff;border-bottom-right-radius:6px }
-.bubble-bot{ background:#1c1c26;color:#dfe2e7;border-bottom-left-radius:6px }
+
+/* ************************************************* */
+/* EDITED: Updated border-radius for right/left alignment look */
+/* ************************************************* */
+.bubble-user{ background:#2b2b3b;color:#fff;border-bottom-right-radius:6px; border-bottom-left-radius:16px }
+.bubble-bot{ background:#1c1c26;color:#dfe2e7;border-bottom-left-radius:6px; border-bottom-right-radius:16px }
+/* ************************************************* */
+
 .timestamp{ text-align:center;font-size:.75rem;color:#9ca3af;margin:.85rem 0 }
 .pull-hint{ position:absolute;top:8px;left:0;right:0;text-align:center;font-size:.75rem;color:#9ca3af;opacity:0;transition:opacity .25s }
 .pull-hint.visible{ opacity:.85 }
@@ -70,7 +76,7 @@ a{text-decoration:none}
 @keyframes introZoom{ from{ transform:scale(.65); opacity:0 } to{ transform:scale(1.15); opacity:1 } }
 @keyframes introFlash{ from{ opacity:0 } 30%{ opacity:1 } to{ opacity:0 } }
 
-/* ===== Full-screen Floaters (now visible) ===== */
+/* ===== Full-screen Floaters (now visible) */
 .home-hero{ background:transparent; position:relative; z-index:1; }
 .floaters{ position:fixed; inset:0; pointer-events:none; z-index:0; } /* <— was -1 */
 .floater{
