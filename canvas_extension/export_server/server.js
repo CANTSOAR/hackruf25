@@ -1,51 +1,41 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const fs = require("fs");
-const path = require("path");
+const axios = require("axios");
 
 const app = express();
 const PORT = 3000;
 
-// Enable CORS for all origins
+// Enable CORS
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.sendStatus(200); // handle preflight
+  if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
-
-// Folder to store JSON exports
-const EXPORT_DIR = path.join(__dirname, "exports");
-if (!fs.existsSync(EXPORT_DIR)) fs.mkdirSync(EXPORT_DIR, { recursive: true });
 
 // Parse JSON body
 app.use(bodyParser.json({ limit: "50mb" }));
 
-const axios = require("axios");
-app.post("/receive_canvas_export", async(req, res) => {
+app.post("/receive_canvas_export", async (req, res) => {
   try {
     const data = req.body;
 
     if (!data.profile || !data.profile.id) {
-      return res.status(400).json({ success: false, error: "Missing profile.uuid in payload" });
+      return res.status(400).json({ success: false, error: "Missing profile.id in payload" });
     }
 
-    const uuid = data.profile.id;
-    const filename = `canvas_export_${uuid}.json`; //this will be how we can get the uuid 
-    const filepath = path.join(EXPORT_DIR, filename);
-
-    fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-    console.log(`✅ Saved Canvas export to ${filepath}`);
-
-    await axios.post("http://localhost:5000/api/store_main", {
-      profile_id: data.profile.id,
-      canvas_json: data
+    // Forward to Flask
+    const flaskResp = await axios.post("http://scarletagent.tech/api/integrations/canvas/save", data, {
+      headers: { "Content-Type": "application/json" },
     });
 
-    res.status(200).json({ success: true, file: filename });
+    res.status(flaskResp.status).json({
+      success: true,
+      flask_response: flaskResp.data
+    });
   } catch (err) {
-    console.error("❌ Failed to save Canvas export:", err);
+    console.error("❌ Failed to forward Canvas export:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
