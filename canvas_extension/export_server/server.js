@@ -40,10 +40,7 @@ app.post("/receive_canvas_export", async(req, res) => {
 
     await axios.post("http://localhost:5000/api/store_main", {
       profile_id: data.profile.id,
-      primary_email: data.profile.primary_email,
-      canvas_json: data,
-      gcal_token_json: require("./gcal_token.json"),
-      gdrive_token_json: require("./gdrive_token.json")
+      canvas_json: data
     });
 
     res.status(200).json({ success: true, file: filename });

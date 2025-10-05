@@ -1,0 +1,30 @@
+Web Framework
+flask==3.0.0
+werkzeug==3.0.1
+
+Environment and Configuration
+python-dotenv==1.0.0
+
+AI and Language Models
+elevenlabs==2.16.0
+langchain-core>=0.3.75
+langchain-google-genai==2.1.12
+langgraph>=0.2.0
+
+Google APIs and Authentication
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.108.0
+
+Database
+snowflake-connector-python==3.6.0
+
+Scheduling
+apscheduler==3.10.4
+
+HTTP Requests
+requests==2.31.0
+
+Timezone support (for systems without built-in timezone data)
+tzdata>=2023.3
