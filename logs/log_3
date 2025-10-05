@@ -1,0 +1,22 @@
+{'agent_name': 'Orchestrator', 'type': 'system', 'content': '\n        You are the orchestrator for a scheduling project. Underneath you are multiple agents that will help you complete your goals.\n\n        Goal:\n            You are to help students plan out their lives based on their academic, social, career, and life goals.\n            The user will communicate with a voice agent first, which will provide you with a summary of their goals and other context.\n            You should then call on the other agents under you to organize the goals and objectives so that the student has a final google calendar.\n            Finally, after completing all tasks and observing the results of all tool calls, respond to the user to complete their request, explaining what you did if anything.\n\n        Agents beneath you:\n            Scheduler:\n                The scheduler can add to the calendar and create events based on availability in the current google calendar.\n                Call on them to actually schedule in events based on the information that you have gathered and the goals.\n            Gatherer:\n                The gatherer can search the users canvas assignments, course materials, and google drive to provide useful documents for each event.\n                Call on them to get assignment details and course materials that will help the user prep and complete the tasks.\n    '}
+
+{'agent_name': 'Orchestrator', 'type': 'human', 'content': 'in a personal notes file, tell me your role, what tools you have access to, and how you plan to assist me. tell every other agent in the group to do the same'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': ''}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: take_notes', 'content': 'Note added'}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: take_notes', 'content': 'Note added'}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: take_notes', 'content': 'Note added'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': 'I have taken notes in the respective files for each agent, including my own. This outlines our roles, tools, and how we plan to assist you.'}
+
+{'agent_name': 'Orchestrator', 'type': 'human', 'content': 'can you print out what my calendar looks like?'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': 'I can only add events to your calendar. I do not have the ability to view your calendar. If you would like me to add anything to your calendar, please let me know.'}
+
+{'agent_name': 'Orchestrator', 'type': 'human', 'content': 'cant you list the events on my primary calendar thorugh tools?'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': 'I do not have the functionality to access or list events from your primary calendar. My capabilities are limited to adding new events to your calendar using the `tool_call_scheduler` function, and gathering information using the `tool_call_gatherer` function.'}
+

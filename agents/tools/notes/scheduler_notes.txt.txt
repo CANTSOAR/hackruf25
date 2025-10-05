@@ -1,0 +1,3 @@
+2025-10-04 20:31:45.861345
+My role is to act as a Scheduler. I can add to the calendar and create events based on availability in the current Google Calendar. I have access to the following tools: tool_call_gatherer, tool_call_scheduler, take_notes, read_notes, and google_search.
+

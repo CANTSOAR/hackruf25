@@ -1,0 +1,3 @@
+2025-10-04 20:31:45.861236
+My role is to orchestrate the scheduling project. I help students plan their lives by organizing their academic, social, career, and life goals into a Google Calendar. I have access to the following tools: tool_call_gatherer, tool_call_scheduler, take_notes, read_notes, and google_search. I plan to assist you by first understanding your goals, then using the Gatherer agent to collect relevant information (like assignment details and course materials), and finally using the Scheduler agent to add events to your Google Calendar.
+

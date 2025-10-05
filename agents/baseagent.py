@@ -29,7 +29,7 @@ class BaseAgent:
             BaseAgent.read_notes,
             tool(GOOGLE_HELPER.make_google_search())
         ]
-        self.tool_node = ToolNode(tools)
+        self.tool_node = ToolNode(self.tools)
 
         class AgentState(TypedDict):
             messages: Annotated[list, lambda x, y: x + y]
@@ -129,7 +129,7 @@ class BaseAgent:
         Should you want private notes, include a file name that you will remember and then you can read/write to that.
         In the public file, please include who you are, so that other agents know who put in what note.
         """
-        with open(f"./agents/notes/{file}.txt", open_type) as f:
+        with open(f"./agents/tools/notes/{file}.txt", open_type) as f:
             f.write(str(dt.datetime.now()) + "\n" + note + "\n\n")
 
         return "Note added"
@@ -142,7 +142,7 @@ class BaseAgent:
         By default it reads from the public file, but you can provide the file name of your private file if you want to read your personal file.
         """
         try:
-            with open(f"./agents/notes/{file}.txt", "r") as f:
+            with open(f"./agents/tools/notes/{file}.txt", "r") as f:
                 notes = f.read()
         except Exception as e:
             return f"Error: {e}"
