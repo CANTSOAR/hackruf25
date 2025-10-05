@@ -181,27 +181,6 @@ def post_message():
     add_message(user, "bot", f"Message received: '{text}'")
     return jsonify({"ok": True})
 
-# ----------cache-------------
-
-@app.post("/api/flush_messages")
-def flush_messages():
-    user = current_user()
-    if not user:
-        return make_response(jsonify({"error": "unauthorized"}), 401)
-    data = request.get_json(force=True)
-    messages = data.get("messages", [])
-
-    flushed_count = 0
-    for msg in messages:
-        role = msg.get("role")
-        text = msg.get("text")
-        if role and text:
-            Message.create(db, user.id, role, text, get_current_chat())
-            flushed_count += 1
-
-    return jsonify({"ok": True, "flushed": flushed_count})
-
-
 # ---------- errors ----------
 @app.errorhandler(403)
 def e403(_): return render_template("base.html", title="403 Forbidden"), 403

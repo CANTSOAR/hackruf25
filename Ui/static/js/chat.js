@@ -136,15 +136,15 @@
 
       let msgs = data.messages || [];
 
-      // Initial view: filter to >= loginAt
+      // FIX: do not filter out all messages if login_at is newer than message timestamps
       if (!before && !unlockedOlder && loginAt) {
         const cutoff = new Date(loginAt).getTime();
-        msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= cutoff);
+        const BUFFER_MS = 24*3600*1000; // allow 1 day earlier to keep initial messages
+        msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= cutoff - BUFFER_MS);
       }
 
       if (before) {
         if (msgs.length === 0) { reachedEnd = true; return {count:0}; }
-        // prepend and keep order
         const prevHeight = wrap.scrollHeight;
         allMessages = [...msgs, ...(unlockedOlder ? allMessages : newestBatch)];
         renderAll();
@@ -218,7 +218,6 @@
   wrap.addEventListener('scroll', async ()=>{
     if (wrap.scrollTop <= 8){
       pullHint.classList.add('visible');
-      // resistance so it feels "hard to pull"
       if (!unlockedOlder) wrap.scrollTop = 22;
 
       if (!pullCooldown && oldest){
