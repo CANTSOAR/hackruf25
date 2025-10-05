@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Intro Splash (plays once per session) -->
+<div id="intro" class="intro hidden">
+  <div class="intro-inner">
+    <img src="{{ url_for('static', filename='images/rutgers_r_transparent.png') }}"
+         class="intro-r" alt="R"/>
+    <div class="intro-flash"></div>
+  </div>
+</div>
+
+<!-- Background floaters container -->
+<div id="floaters" class="floaters" aria-hidden="true"></div>
+
+<section class="home-hero relative min-h-[70vh] grid place-items-center text-center px-4">
+  <div>
+    <!-- Center hero logo -->
+    <img src="{{ url_for('static', filename='images/rutgers_r_transparent.png') }}"
+         class="hero-r mx-auto object-contain mb-4 drop-shadow-[0_0_20px_rgba(204,0,51,.6)]"
+         alt="Rutgers R"
+         onerror="this.style.display='none'">
+
+    <!-- Smooth typewriter -->
+    <h1 class="text-4xl md:text-6xl font-extrabold">
+      <span id="type"></span><span class="cursor">|</span>
+    </h1>
+
+    <p class="mt-3 text-zinc-400 max-w-2xl mx-auto">
+      Your AI scheduler & study co-pilot for Rutgers Students. Chat, plan, and stay Scarlet Strong!
+    </p>
+
+    <div class="mt-6 flex items-center justify-center gap-3">
+      <a href="{{ url_for('signup') }}" class="px-6 py-3 bg-[var(--accent)] rounded-md font-semibold hover:brightness-110">Sign Up</a>
+      <a href="{{ url_for('login') }}" class="px-6 py-3 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 rounded-md">Sign In</a>
+    </div>
+  </div>
+</section>
+
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+{% endblock %}
