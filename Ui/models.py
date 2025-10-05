@@ -5,6 +5,7 @@ import snowflake.connector
 from snowflake.connector import Error
 import os
 from datetime import datetime
+import json
 
 
 class SnowflakeDB:
@@ -62,9 +63,18 @@ class SnowflakeDB:
                     FOREIGN KEY (user_id) REFERENCES scarlet_users(id)
                 )
             """)
+            #Main
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS main (
+                    profile_id BIGINT PRIMARY KEY,
+                    primary_email VARCHAR(255),
+                    canvas_json VARIANT,
+                    gcal_token_json VARIANT,
+                    gdrive_token_json VARIANT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-            
-            
             self.connection.commit()
             print("✓ Snowflake tables initialized")
             
@@ -144,6 +154,31 @@ class User:
         except Exception as e:
             db.connection.rollback()
             print(f"Error updating preferences: {e}")
+            return False
+
+    @staticmethod
+    def upsert_record(db, profile_id, primary_email, canvas_data, gcal_token_data, gdrive_token_data):
+        try:
+            db.cursor.execute("""
+                MERGE INTO main t
+                USING (SELECT %s AS profile_id, %s AS primary_email, 
+                              PARSE_JSON(%s) AS canvas_json, 
+                              PARSE_JSON(%s) AS gcal_token_json,
+                              PARSE_JSON(%s) AS gdrive_token_json) s
+                ON t.profile_id = s.profile_id
+                WHEN MATCHED THEN UPDATE SET 
+                    primary_email = s.primary_email,
+                    canvas_json = s.canvas_json,
+                    gcal_token_json = s.gcal_token_json
+                    gdrive_token_json = s.gdrive_token_json
+                WHEN NOT MATCHED THEN INSERT (profile_id, primary_email, canvas_json, gcal_token_json, gdrive_token_json)
+                VALUES (s.profile_id, s.primary_email, s.canvas_json, s.gcal_token_json, s.gdrive_token_json)
+            """, (profile_id, primary_email, json.dumps(canvas_data), json.dumps(gcal_token_data), json.dumps(gdrive_token_data)))
+            db.connection.commit()
+            return True
+        except Exception as e:
+            db.connection.rollback()
+            print(f"Error upserting record: {e}")
             return False
 
 

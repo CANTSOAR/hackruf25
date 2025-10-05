@@ -22,7 +22,8 @@ if (!fs.existsSync(EXPORT_DIR)) fs.mkdirSync(EXPORT_DIR, { recursive: true });
 // Parse JSON body
 app.use(bodyParser.json({ limit: "50mb" }));
 
-app.post("/receive_canvas_export", (req, res) => {
+const axios = require("axios");
+app.post("/receive_canvas_export", async(req, res) => {
   try {
     const data = req.body;
 
@@ -31,11 +32,18 @@ app.post("/receive_canvas_export", (req, res) => {
     }
 
     const uuid = data.profile.id;
-    const filename = `canvas_export_${uuid}.json`;
+    const filename = `canvas_export_${uuid}.json`; //this will be how we can get the uuid 
     const filepath = path.join(EXPORT_DIR, filename);
 
     fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
     console.log(`✅ Saved Canvas export to ${filepath}`);
+
+    await axios.post("http://localhost:5000/api/store_main", {
+      profile_id: data.profile.id,
+      primary_email: data.profile.primary_email,
+      canvas_json: data,
+      token_json: require("./token.json") // or merge both token.json files here
+    });
 
     res.status(200).json({ success: true, file: filename });
   } catch (err) {

@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 
-from Ui.models import init_db, get_db, User, Message
+from Ui.models import init_db, User, Message
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.update(
@@ -132,6 +132,21 @@ def set_prefs():
     user.update_preferences(db, gender, tone)
     return jsonify({"ok": True})
 
+@app.post("/api/store_main")
+def store_main():
+    data = request.get_json(force=True)
+    profile_id = data.get("profile_id")
+    primary_email = data.get("primary_email")
+    canvas_json = data.get("canvas_json")
+    gcal_token_json = data.get("gcal_token_json")
+    gdrive_token_json = data.get("gdrive_token_json")
+
+    ok = User.upsert_record(db, profile_id, primary_email, canvas_json, gcal_token_json, gdrive_token_json)
+    if ok:
+        return jsonify({"ok": True})
+    else:
+        return jsonify({"ok": False}), 500
+
 # ---------- voice placeholder ----------
 @app.post("/api/voice/start")
 def voice_start():
@@ -180,27 +195,6 @@ def post_message():
     add_message(user, "user", text)
     add_message(user, "bot", f"Message received: '{text}'")
     return jsonify({"ok": True})
-
-# ----------cache-------------
-
-@app.post("/api/flush_messages")
-def flush_messages():
-    user = current_user()
-    if not user:
-        return make_response(jsonify({"error": "unauthorized"}), 401)
-    data = request.get_json(force=True)
-    messages = data.get("messages", [])
-
-    flushed_count = 0
-    for msg in messages:
-        role = msg.get("role")
-        text = msg.get("text")
-        if role and text:
-            Message.create(db, user.id, role, text, get_current_chat())
-            flushed_count += 1
-
-    return jsonify({"ok": True, "flushed": flushed_count})
-
 
 # ---------- errors ----------
 @app.errorhandler(403)
