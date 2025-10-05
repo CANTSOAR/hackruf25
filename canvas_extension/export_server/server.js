@@ -42,7 +42,8 @@ app.post("/receive_canvas_export", async(req, res) => {
       profile_id: data.profile.id,
       primary_email: data.profile.primary_email,
       canvas_json: data,
-      token_json: require("./token.json") // or merge both token.json files here
+      gcal_token_json: require("./gcal_token.json"),
+      gdrive_token_json: require("./gdrive_token.json")
     });
 
     res.status(200).json({ success: true, file: filename });
