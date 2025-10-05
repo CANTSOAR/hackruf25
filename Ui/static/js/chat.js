@@ -59,7 +59,7 @@
   // ----- Voice call placeholder -----
   callBtn?.addEventListener('click', async ()=>{
     try{
-      const r = await fetch('/api/voice/start', {method:'POST'});
+      const r = await fetch('/api/interact', {method:'POST'});
       const d = await r.json();
       alert(d.message || 'Voice coming soon.');
     }catch(e){ alert('Voice coming soon.'); }
