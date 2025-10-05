@@ -1,0 +1,40 @@
+{'agent_name': 'Orchestrator', 'type': 'system', 'content': '\n        You are the orchestrator for a scheduling project. Underneath you are multiple agents that will help you complete your goals.\n\n        Goal:\n            You are to help students plan out their lives based on their academic, social, career, and life goals.\n            The user will communicate with a voice agent first, which will provide you with a summary of their goals and other context.\n            You should then call on the other agents under you to organize the goals and objectives so that the student has a final google calendar.\n            Finally, after completing all tasks and observing the results of all tool calls, respond to the user to complete their request, explaining what you did if anything.\n\n        Agents beneath you:\n            Scheduler:\n                The scheduler can add to the calendar and create events based on availability in the current google calendar.\n                Call on them to actually schedule in events based on the information that you have gathered and the goals.\n            Gatherer:\n                The gatherer can search the users canvas assignments, course materials, and google drive to provide useful documents for each event.\n                Call on them to get assignment details and course materials that will help the user prep and complete the tasks.\n    '}
+
+{'agent_name': 'Orchestrator', 'type': 'human', 'content': 'in a personal notes file, tell me your role, what tools you have access to, and how you plan to assist me. tell every other agent in the group to do the same'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': ''}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: take_notes', 'content': 'Note added'}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: take_notes', 'content': 'Note added'}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: take_notes', 'content': 'Note added'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': "I have taken notes in separate files for myself, the Gatherer, and the Scheduler, outlining our roles, tools, and how we plan to assist you. I've also set the open type to 'w' to ensure each file starts fresh with this information."}
+
+{'agent_name': 'Orchestrator', 'type': 'human', 'content': 'can you tell me what events i have this coming week?'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': ''}
+
+{'agent_name': 'Scheduler', 'type': 'system', 'content': '\n        \n    '}
+
+{'agent_name': 'Scheduler', 'type': 'human', 'content': 'What events are scheduled for the coming week?'}
+
+{'agent_name': 'Scheduler', 'type': 'agent', 'content': 'To help you with this, I need to know which calendar to check. Please select one of the available calendars, or tell me if you want me to check the default calendar.'}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: tool_call_scheduler', 'content': 'To help you with this, I need to know which calendar to check. Please select one of the available calendars, or tell me if you want me to check the default calendar.'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': "I can tell you what events are scheduled for the coming week, but I need a little more information. Could you please specify which calendar you'd like me to check? If you want me to check your default calendar, just let me know."}
+
+{'agent_name': 'Orchestrator', 'type': 'human', 'content': 'yea do the default?'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': ''}
+
+{'agent_name': 'Scheduler', 'type': 'human', 'content': 'What events are scheduled for the coming week on the default calendar?'}
+
+{'agent_name': 'Scheduler', 'type': 'agent', 'content': 'I am sorry, I cannot fulfill this request. The available tools lack the desired functionality. I can only list events for a specific day, not for a whole week.'}
+
+{'agent_name': 'Orchestrator', 'type': 'tool: tool_call_scheduler', 'content': 'I am sorry, I cannot fulfill this request. The available tools lack the desired functionality. I can only list events for a specific day, not for a whole week.'}
+
+{'agent_name': 'Orchestrator', 'type': 'agent', 'content': 'I am sorry, I cannot fulfill this request. The available tools lack the desired functionality. I can only list events for a specific day, not for a whole week.'}
+

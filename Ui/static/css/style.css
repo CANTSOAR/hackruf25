@@ -1,0 +1,95 @@
+:root { --accent:#cc0033; --neon:#1fb6ff; }
+
+html,body{ background:#0b0b0f; color:#fff; }
+a{text-decoration:none}
+
+/* ===== Liquid Glass Navbar ===== */
+.glassbar{
+  background: linear-gradient(180deg, rgba(9,9,14,.45), rgba(9,9,14,.25));
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  border-bottom: 1px solid rgba(120,120,140,.18);
+  position: sticky; top:0; z-index:60;
+}
+.glassbar::before{
+  content:""; position:absolute; inset:0;
+  background: radial-gradient(60% 200% at var(--x, -20%) 0%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 55%);
+  pointer-events:none; mix-blend-mode:overlay; animation: sheen 8s linear infinite;
+}
+@keyframes sheen{ 0%{--x:-25%} 50%{--x:125%} 100%{--x:-25%} }
+
+/* ===== Glass / Neon helpers ===== */
+.glass{
+  background: linear-gradient(180deg, rgba(20,20,28,.65), rgba(14,14,20,.6));
+  backdrop-filter: blur(6px);
+  border:1px solid rgba(100,100,120,.22);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+  border-radius:14px;
+}
+.neon-btn{
+  background: radial-gradient(120% 120% at 50% 0%, var(--accent) 0%, #a80028 55%, #7b001d 100%);
+  box-shadow: 0 0 12px rgba(204,0,51,.35), 0 6px 22px rgba(204,0,51,.18);
+}
+.sm-btn{ border-radius:12px; border:1px solid #303036; }
+
+/* ===== Chat ===== */
+.chat-box{ height:60vh; overflow-y:auto; padding:14px; }
+.message-row{ display:flex; align-items:flex-end; gap:.5rem; margin-bottom:.55rem; }
+.message-row.user{ justify-content:flex-end; }
+.message-row.bot{ justify-content:flex-start; }
+.avatar{ width:28px;height:28px;border-radius:9999px;display:grid;place-items:center;font-size:16px;background:#1f1f2a;border:1px solid #3f3f46 }
+.avatar img{ width:100%;height:100%;object-fit:cover;border-radius:9999px }
+.bubble{ border-radius:16px;padding:10px 14px;line-height:1.45;max-width:72% }
+.bubble-user{ background:#2b2b3b;color:#fff;border-bottom-right-radius:6px }
+.bubble-bot{ background:#1c1c26;color:#dfe2e7;border-bottom-left-radius:6px }
+.timestamp{ text-align:center;font-size:.75rem;color:#9ca3af;margin:.85rem 0 }
+.pull-hint{ position:absolute;top:8px;left:0;right:0;text-align:center;font-size:.75rem;color:#9ca3af;opacity:0;transition:opacity .25s }
+.pull-hint.visible{ opacity:.85 }
+.mascot-avatar{ object-position:50% 40%; transform:translateY(4px) }
+.call-btn{ height:42px;width:42px;display:grid;place-items:center;border-radius:9999px;color:white;
+  background: radial-gradient(120% 120% at 50% 0%, rgba(31,182,255,.45), rgba(31,182,255,.18));
+  border:1px solid rgba(31,182,255,.45); box-shadow:0 0 18px rgba(31,182,255,.35), inset 0 1px 0 rgba(255,255,255,.06);
+  transition: transform .12s ease, box-shadow .2s ease }
+.call-btn:hover{ transform:translateY(-1px); box-shadow:0 0 22px rgba(31,182,255,.5) }
+
+/* ===== Modal ===== */
+.modal{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:grid; place-items:center; z-index:70 }
+.modal.hidden{ display:none }
+.modal-content{ background:#0f0f14; border:1px solid #303036; border-radius:12px; padding:16px; width:320px }
+
+/* ===== Landing Intro (slower) ===== */
+.intro{ position:fixed; inset:0; display:grid; place-items:center; z-index:65;
+  background: radial-gradient(120% 120% at 50% 50%, #0b0b0f 0%, #040408 100%) }
+.intro.hidden{ display:none }
+.intro-inner{ position:relative }
+.intro-r{ width:220px; height:220px; object-fit:contain; filter:drop-shadow(0 0 30px rgba(204,0,51,.55));
+  animation:introZoom 1.2s ease-out forwards }
+.intro-flash{ position:absolute; inset:-30vmax;
+  background: radial-gradient(closest-side, rgba(255,255,255,.85), rgba(255,255,255,0));
+  opacity:0; pointer-events:none; animation:introFlash .8s ease-out 1s forwards }
+@keyframes introZoom{ from{ transform:scale(.65); opacity:0 } to{ transform:scale(1.15); opacity:1 } }
+@keyframes introFlash{ from{ opacity:0 } 30%{ opacity:1 } to{ opacity:0 } }
+
+/* ===== Full-screen Floaters (now visible) ===== */
+.home-hero{ background:transparent; position:relative; z-index:1; }
+.floaters{ position:fixed; inset:0; pointer-events:none; z-index:0; } /* <— was -1 */
+.floater{
+  position:absolute; opacity:0; background-size:contain; background-repeat:no-repeat;
+  filter: drop-shadow(0 0 14px rgba(204,0,51,.34));        /* slightly brighter */
+  animation: floaterMove var(--dur) ease-in-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes floaterMove{
+  0%   { opacity:0; transform: translate(var(--xStart), var(--yStart)) scale(var(--scale)) rotate(var(--rot)); }
+  15%  { opacity: var(--alpha); }
+  85%  { opacity: var(--alpha); }
+  100% { opacity:0; transform: translate(var(--xEnd), var(--yEnd)) scale(calc(var(--scale) * 1.02)) rotate(calc(var(--rot) + var(--spin))); }
+}
+
+/* ===== Typewriter cursor ===== */
+.cursor{ display:inline-block; margin-left:2px; width:1ch; color:rgba(255,255,255,.85); animation:blink 1.05s step-end infinite }
+@keyframes blink{ 50%{ opacity:0 } }
+.hero-r{ width:7rem; height:7rem }
+
+/* ===== Toast ===== */
+.toast{ background:#cc0033; position:fixed; top:1rem; right:1rem; padding:10px 16px; border-radius:8px; z-index:80; opacity:1; transition:opacity .35s ease }

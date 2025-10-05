@@ -10,206 +10,210 @@ from googleapiclient.errors import HttpError
 
 from agents.baseagent import *
 
-# Scope for full read/write access to calendars
+# This scope allows for full read, edit, and creation access.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
-def get_calendar_service():
-    """Gets an authorized Google Calendar service object."""
-    creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            # Ensure your credentials file is named correctly
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "credentials.json", SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
-    try:
-        service = build("calendar", "v3", credentials=creds)
-        return service
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
+class GoogleCalendarManager:
+    """A manager to handle all Google Calendar API interactions."""
+    
+    def __init__(self):
+        """Initializes the manager and authorizes the Google Calendar service."""
+        self.service = self._get_service()
+        if not self.service:
+            raise Exception("Failed to initialize Google Calendar service.")
 
-def list_calendars(service):
-    """(Function 1) Lists all of the user's calendars."""
-    print("Getting the list of calendars...")
-    try:
-        calendars_result = service.calendarList().list().execute()
-        calendars = calendars_result.get("items", [])
-        if not calendars:
-            print("No calendars found.")
-            return
-        print("Your calendars:")
-        for calendar in calendars:
-            summary = calendar["summary"]
-            cal_id = calendar["id"]
-            print(f"- {summary} (ID: {cal_id})")
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-
-def list_events(service, calendar_id='primary'):
-    """(Function 2) Lists the next 10 upcoming events on a specific calendar."""
-    print(f"\nGetting upcoming events from calendar: {calendar_id}")
-    try:
-        # 'Z' indicates UTC time
-        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    def _get_service(self):
+        """Gets an authorized Google Calendar service object."""
+        creds = None
+        if os.path.exists("token.json"):
+            creds = Credentials.from_authorized_user_file("token.json", SCOPES)
         
-        events_result = (
-            service.events()
-            .list(
-                calendarId=calendar_id,
-                timeMin=now,
-                maxResults=10,
-                singleEvents=True,
-                orderBy="startTime",
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                try:
+                    creds.refresh(Request())
+                except Exception as e:
+                    print(f"Token refresh failed: {e}. Re-authenticating.")
+                    creds = None # Force re-authentication
+            
+            if not creds:
+                # Ensure your credentials file is named correctly
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    "credentials.json", SCOPES
+                )
+                creds = flow.run_local_server(port=0)
+
+            with open("token.json", "w") as token:
+                token.write(creds.to_json())
+        
+        try:
+            return build("calendar", "v3", credentials=creds)
+        except HttpError as error:
+            print(f"An error occurred building the service: {error}")
+            return None
+
+    def list_calendars(self):
+        """Returns a list of the user's calendars."""
+        try:
+            calendars_result = self.service.calendarList().list().execute()
+            calendars = calendars_result.get("items", [])
+            if not calendars:
+                return "No calendars found."
+
+            # Format for agent-friendly output
+            return [
+                {"summary": cal["summary"], "id": cal["id"]} for cal in calendars
+            ]
+        except HttpError as error:
+            return f"An error occurred while listing calendars: {error}"
+
+    def list_events(self, calendar_id: str = 'primary', max_results: int = 10):
+        """Returns upcoming events from a specific calendar."""
+        try:
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            events_result = (
+                self.service.events()
+                .list(
+                    calendarId=calendar_id,
+                    timeMin=now,
+                    maxResults=max_results,
+                    singleEvents=True,
+                    orderBy="startTime",
+                )
+                .execute()
             )
-            .execute()
-        )
-        events = events_result.get("items", [])
+            events = events_result.get("items", [])
+            if not events:
+                return f"No upcoming events found on calendar '{calendar_id}'."
 
-        if not events:
-            print("No upcoming events found.")
-            return
+            # Format for agent-friendly output
+            event_list = []
+            for event in events:
+                start = event["start"].get("dateTime", event["start"].get("date"))
+                event_list.append(f"'{event['summary']}' at '{start}'")
+            return event_list
+        except HttpError as error:
+            return f"An error occurred while listing events: {error}"
 
-        print("Upcoming events:")
-        for event in events:
-            start = event["start"].get("dateTime", event["start"].get("date"))
-            print(f"- {start} | {event['summary']}")
+    def create_event(self, calendar_id: str, summary: str, start_time: datetime.datetime, end_time: datetime.datetime):
+        """Creates an event on a specified calendar and returns its link."""
+        if not start_time.tzinfo or not end_time.tzinfo:
+            raise ValueError("Start and end times must be timezone-aware.")
 
-    except HttpError as error:
-        print(f"An error occurred: {error}")
+        event = {
+            'summary': summary,
+            'start': {'dateTime': start_time.isoformat(), 'timeZone': str(start_time.tzinfo)},
+            'end': {'dateTime': end_time.isoformat(), 'timeZone': str(end_time.tzinfo)},
+        }
+        
+        try:
+            created_event = self.service.events().insert(calendarId=calendar_id, body=event).execute()
+            link = created_event.get('htmlLink')
+            return f"Event '{summary}' created successfully. View it here: {link}"
+        except HttpError as error:
+            return f"An error occurred while creating the event: {error}"
 
-def create_event(service, calendar_id, summary, start_time, end_time):
-    """(Function 3) Creates a new event at a specific time."""
-    print(f"\nCreating event on calendar: {calendar_id}...")
-    
-    event = {
-        'summary': summary,
-        'start': {
-            'dateTime': start_time.isoformat(),
-            'timeZone': str(start_time.tzinfo),
-        },
-        'end': {
-            'dateTime': end_time.isoformat(),
-            'timeZone': str(end_time.tzinfo),
-        },
-    }
-    
-    try:
-        created_event = service.events().insert(calendarId=calendar_id, body=event).execute()
-        print(f"Event created successfully!")
-        print(f"View it here: {created_event.get('htmlLink')}")
-    except HttpError as error:
-        print(f"An error occurred: {error}")
+    def create_calendar(self, summary: str, time_zone: str = 'America/New_York'):
+        """Creates a new calendar and returns its details."""
+        calendar_body = {'summary': summary, 'timeZone': time_zone}
+        try:
+            created_calendar = self.service.calendars().insert(body=calendar_body).execute()
+            return {
+                "message": "Calendar created successfully!",
+                "id": created_calendar['id'],
+                "summary": created_calendar['summary']
+            }
+        except HttpError as error:
+            return f"An error occurred while creating the calendar: {error}"
 
-def create_calendar(service, summary, time_zone='America/New_York'):
-    """(Function 4) Creates a new calendar."""
-    print(f"\nCreating a new calendar named '{summary}'...")
-    calendar_body = {
-        'summary': summary,
-        'timeZone': time_zone
-    }
-    try:
-        created_calendar = service.calendars().insert(body=calendar_body).execute()
-        print("Calendar created successfully!")
-        print(f"  ID: {created_calendar['id']}")
-        print(f"  Summary: {created_calendar['summary']}")
-    except HttpError as error:
-        print(f"An error occurred: {error}")
+# --- Agent Tools ---
 
 @tool
 def tool_list_calendars():
     """
-    This tool is used to get the available google calendars of the user, so that you can choose which ones to interact with later.
-    If there are errors, communicate that with the orchestrator.
+    This tool gets the available Google Calendars for the user, so you can choose which one to interact with.
+    Returns a list of calendar objects, each with a 'summary' and 'id'.
     """
     try:
-        service = get_calendar_service()
-
-        if service:
-            return list_calendars(service)
-        else:
-            raise(Exception("Google Calendar Service not enabled, please ask user to enable"))
-        
+        manager = GoogleCalendarManager()
+        return manager.list_calendars()
     except Exception as e:
-        return f"Error with listing google calendars: {e}"
+        return f"Error listing Google Calendars: {e}. Ask the user to authorize access if needed."
     
 @tool
 def tool_list_events(calendar_id: str = "primary"):
     """
-    This tool is used to pull all the events from a specific calendar. You can use this to get context from the calendar and see what already exists.
-    If there are errors, communicate that with the orchestrator.
+    This tool pulls upcoming events from a specific calendar to get context on what already exists.
+    Use a calendar ID from 'tool_list_calendars' or 'primary' for the default calendar.
     """
     try:
-        service = get_calendar_service()
-
-        if service:
-            return list_events(service, calendar_id = calendar_id)
-        else:
-            raise(Exception("Google Calendar Service not enabled, please ask user to enable"))
-        
+        manager = GoogleCalendarManager()
+        return manager.list_events(calendar_id=calendar_id)
     except Exception as e:
-        return f"Error with listing google events on calendar {calendar_id}: {e}"
+        return f"Error listing events on calendar '{calendar_id}': {e}."
     
 @tool
-def tool_create_event(calendar_id, event_summary, start, end):
+def tool_create_event(calendar_id: str, event_summary: str, start_time: datetime.datetime, end_time: datetime.datetime):
     """
-    This tool is used to create an event on a calendar. You can use this to schedule in new events and allocate time to ojbectives.
-    If there are errors, communicate that with the orchestrator.
+    This tool creates an event on a calendar to schedule new items.
+    The start_time and end_time must be timezone-aware datetime objects.
     """
     try:
-        service = get_calendar_service()
-
-        if service:
-            return create_event(service, calendar_id, event_summary, start, end)
-        else:
-            raise(Exception("Google Calendar Service not enabled, please ask user to enable"))
-        
+        manager = GoogleCalendarManager()
+        return manager.create_event(calendar_id, event_summary, start_time, end_time)
     except Exception as e:
-        return f"Error with creating event on calendar {calendar_id}: {e}"
+        return f"Error creating event on calendar '{calendar_id}': {e}."
     
 @tool
 def tool_create_calendar(calendar_summary: str, time_zone: str = "America/New_York"):
     """
-    This tool is used to create a whole new calendar for the user. You can use this to create a brand new calendar if needed, but this should be used sparingly.
-    If there are errors, communicate that with the orchestrator.
+    This tool creates a new calendar. Use this sparingly, only when a new, separate calendar is explicitly needed.
     """
     try:
-        service = get_calendar_service()
-
-        if service:
-            return create_calendar(service, calendar_summary, time_zone)
-        else:
-            raise(Exception("Google Calendar Service not enabled, please ask user to enable"))
-        
+        manager = GoogleCalendarManager()
+        return manager.create_calendar(calendar_summary, time_zone)
     except Exception as e:
-        return f"Error with creating calendar {calendar_summary}: {e}"
+        return f"Error creating calendar '{calendar_summary}': {e}."
 
 if __name__ == "__main__":
-    service = get_calendar_service()
-    if service:
-        # --- 1. READ ALL AVAILABLE CALENDARS ---
-        list_calendars(service)
-        
-        # --- 2. READ ALL EVENTS ON A SPECIFIC CALENDAR ---
-        # Using 'primary' for the user's main calendar
-        list_events(service, calendar_id='primary')
-        
-        # --- 3. CREATE A NEW EVENT AT A SPECIFIC TIME ---
-        # Define the event details
-        event_summary = "Team Meeting about Project X"
-        
-        # Set the timezone (e.g., Eastern Time)
+    # Example usage of the manager class
+    print("--- Initializing Google Calendar Manager ---")
+    try:
+        calendar_manager = GoogleCalendarManager()
+        print("Service initialized successfully.\n")
+
+        # --- 1. List all available calendars ---
+        print("--- Listing Calendars ---")
+        my_calendars = calendar_manager.list_calendars()
+        print(my_calendars)
+        print("-" * 20)
+
+        # --- 2. List upcoming events on the primary calendar ---
+        print("\n--- Listing Upcoming Events (Primary Calendar) ---")
+        upcoming_events = calendar_manager.list_events(calendar_id='primary')
+        print(upcoming_events)
+        print("-" * 20)
+
+        # --- 3. Create a new event ---
+        print("\n--- Creating a New Event ---")
         tz = ZoneInfo("America/New_York")
+        start = datetime.datetime(2025, 11, 5, 14, 0, 0, tzinfo=tz) # Nov 5, 2025 @ 2:00 PM ET
+        end = datetime.datetime(2025, 11, 5, 15, 0, 0, tzinfo=tz)   # Nov 5, 2025 @ 3:00 PM ET
         
-        # Define start and end time with timezone information
-        start = datetime.datetime(2025, 10, 28, 10, 0, 0, tzinfo=tz)
-        end = datetime.datetime(2025, 10, 28, 11, 0, 0, tzinfo=tz)
+        result = calendar_manager.create_event(
+            calendar_id='primary', 
+            summary="Review Q4 Agent Performance", 
+            start_time=start, 
+            end_time=end
+        )
+        print(result)
+        print("-" * 20)
+
+        # --- 4. Create a new calendar ---
+        # print("\n--- Creating a New Calendar ---")
+        # new_cal_result = calendar_manager.create_calendar(summary="Agent Test Calendar")
+        # print(new_cal_result)
+        # print("-" * 20)
         
-        create_event(service, 'primary', event_summary, start, end)
+    except Exception as e:
+        print(f"An error occurred during execution: {e}")
