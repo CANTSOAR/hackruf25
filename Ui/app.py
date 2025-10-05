@@ -320,7 +320,4 @@ def e404(_):
 
 # -------------------- Run --------------------
 if __name__ == "__main__":
-    print("\n" + "="*60)
-    print("🚀 ScarletAgent running → http://localhost:5000")
-    print("="*60)
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=10000, debug=True)
