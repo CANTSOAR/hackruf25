@@ -1,5 +1,5 @@
 """
-Snowflake Database Models for ScarletAgent (fixed)
+Snowflake Database Models for ScarletAgent (fixed + delete helpers)
 """
 import snowflake.connector
 from snowflake.connector import Error
@@ -168,7 +168,7 @@ def get_message_history(db, user_id):
         print(f"Error getting message history: {e}")
         return None
 
-# --- Helper function for upserting payloads ---
+# --- Helper functions for payloads ---
 
 def _upsert_payload(db, table_name, user_id, payload_dict):
     """Generic helper to upsert a JSON payload for a user."""
@@ -202,6 +202,17 @@ def _get_payload(db, table_name, user_id):
         print(f"Error getting payload from {table_name}: {e}")
         return None
 
+def _delete_payload(db, table_name, user_id):
+    """Generic helper to delete a payload row for a user."""
+    try:
+        db.cursor.execute(f"DELETE FROM {table_name} WHERE user_id = %s", (user_id,))
+        db.connection.commit()
+        return True
+    except Exception as e:
+        db.connection.rollback()
+        print(f"Error deleting payload from {table_name}: {e}")
+        return False
+
 # --- Canvas, GCal, GDrive Functions ---
 
 def upsert_canvas_payload(db, user_id, payload_dict):
@@ -210,11 +221,17 @@ def upsert_canvas_payload(db, user_id, payload_dict):
 def get_canvas_payload(db, user_id):
     return _get_payload(db, 'scarlet_canvas_lms', user_id)
 
+def delete_canvas_payload(db, user_id):
+    return _delete_payload(db, 'scarlet_canvas_lms', user_id)
+
 def upsert_gcal_token(db, user_id, payload_dict):
     return _upsert_payload(db, 'scarlet_google_cal_tokens', user_id, payload_dict)
 
 def get_gcal_token(db, user_id):
     return _get_payload(db, 'scarlet_google_cal_tokens', user_id)
+
+def delete_gcal_token(db, user_id):
+    return _delete_payload(db, 'scarlet_google_cal_tokens', user_id)
 
 def upsert_gdrive_token(db, user_id, payload_dict):
     return _upsert_payload(db, 'scarlet_google_drive_tokens', user_id, payload_dict)
@@ -222,6 +239,8 @@ def upsert_gdrive_token(db, user_id, payload_dict):
 def get_gdrive_token(db, user_id):
     return _get_payload(db, 'scarlet_google_drive_tokens', user_id)
 
+def delete_gdrive_token(db, user_id):
+    return _delete_payload(db, 'scarlet_google_drive_tokens', user_id)
 
 # --- DB Initialization ---
 
