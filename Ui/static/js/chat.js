@@ -4,77 +4,24 @@
   const input  = document.getElementById('msgInput');
   const sendBtn= document.getElementById('sendBtn');
   const callBtn= document.getElementById('callBtn');
-  const prefsBtn = document.getElementById('prefsOpen');
-  const modal  = document.getElementById('prefsModal');
-  const modalClose = document.getElementById('prefsClose');
-  const modalSave  = document.getElementById('prefsSave');
-  const toneSel = document.getElementById('toneSel');
-  const preview = document.getElementById('emojiPreview');
   const pullHint = document.getElementById('pullHint');
   if (!wrap) return;
 
-  // ----- Avatar prefs -----
-  const toneMap = { default:'', light:'🏻', medium:'🏼', dark:'🏽', darker:'🏾', darkest:'🏿' };
-  let avatarGender='person', avatarTone='default';
-  function emojiFromPrefs(gender, tone){
-    const toneChar = toneMap[tone] ?? '';
-    if(gender==='man') return '👨' + toneChar;
-    if(gender==='woman') return '👩' + toneChar;
-    return '🧑' + toneChar;
-  }
-  async function loadPrefs(){
-    try{
-      const r = await fetch('/api/prefs'); if(!r.ok) return;
-      const d = await r.json();
-      avatarGender = d.avatar_gender || 'person';
-      avatarTone   = d.avatar_tone || 'default';
-      preview.textContent = emojiFromPrefs(avatarGender, avatarTone);
-      const g = modal.querySelector(`input[name="gender"][value="${avatarGender}"]`); if(g) g.checked = true;
-      toneSel.value = avatarTone;
-    }catch(e){ console.warn(e); }
-  }
-  async function savePrefs(){
-    const gender = modal.querySelector('input[name="gender"]:checked')?.value || 'person';
-    const tone = toneSel.value || 'default';
-    try{
-      await fetch('/api/prefs', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({avatar_gender: gender, avatar_tone: tone})});
-      avatarGender=gender; avatarTone=tone;
-      preview.textContent = emojiFromPrefs(avatarGender, avatarTone);
-      closeModal(); renderAll();
-    }catch(e){ console.warn(e); }
-  }
-  function openModal(){ modal.classList.remove('hidden'); }
-  function closeModal(){ modal.classList.add('hidden'); }
-  prefsBtn?.addEventListener('click', async ()=>{ await loadPrefs(); openModal(); });
-  modalClose?.addEventListener('click', closeModal);
-  modalSave?.addEventListener('click', (e)=>{ e.preventDefault(); savePrefs(); });
-  toneSel?.addEventListener('change', ()=>{ 
-    preview.textContent = emojiFromPrefs(modal.querySelector('input[name="gender"]:checked')?.value || 'person', toneSel.value); 
-  });
-  modal.querySelectorAll('input[name="gender"]').forEach(r => r.addEventListener('change',()=>{
-    preview.textContent = emojiFromPrefs(r.value, toneSel.value);
-  }));
-
-  // ----- Voice call placeholder -----
-  callBtn?.addEventListener('click', async ()=>{
-    try{
-      const r = await fetch('/api/voice/start', {method:'POST'});
-      const d = await r.json();
-      alert(d.message || 'Voice coming soon.');
-    }catch(e){ alert('Voice coming soon.'); }
-  });
+  // ----- Voice Recording State -----
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
 
   // ----- Chat logic -----
-  let newestBatch = [];        // messages from this login session (initial view)
-  let allMessages = [];        // unified list after unlock
-  let oldest = null;           // string ISO of earliest loaded
+  let newestBatch = [];        
+  let allMessages = [];        
+  let oldest = null;           
   let loading = false;
   let reachedEnd = false;
-  let loginAt = null;          // string ISO from server
-  let unlockedOlder = false;   // require 2 pulls
+  let loginAt = null;          
+  let unlockedOlder = false;   
   let pullCount = 0;
-  let pullCooldown = false;    // debounce pulls
+  let pullCooldown = false;    
 
   function formatStamp(iso){
     const dt = new Date(iso);
@@ -87,11 +34,17 @@
     const isUser = m.role === 'user';
     const bubble = isUser ? 'bubble bubble-user' : 'bubble bubble-bot';
     const rowClass = isUser ? 'message-row user' : 'message-row bot';
-    const userAvatar = `<div class="avatar">${emojiFromPrefs(avatarGender, avatarTone)}</div>`;
+    const userAvatar = `<div class="avatar">🧑</div>`;
     const botAvatar  = `<div class="avatar"><img src="/static/images/rutgers_logo.png" onerror="this.parentElement.textContent='🤖'"></div>`;
     return isUser
-      ? `<div class="${rowClass}"><div class="${bubble}">${m.text}</div>${userAvatar}</div>`
-      : `<div class="${rowClass}">${botAvatar}<div class="${bubble}">${m.text}</div></div>`;
+      ? `<div class="${rowClass}"><div class="${bubble}">${escapeHtml(m.text)}</div>${userAvatar}</div>`
+      : `<div class="${rowClass}">${botAvatar}<div class="${bubble}">${escapeHtml(m.text)}</div></div>`;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   function renderList(list){
@@ -136,10 +89,9 @@
 
       let msgs = data.messages || [];
 
-      // FIX: do not filter out all messages if login_at is newer than message timestamps
       if (!before && !unlockedOlder && loginAt) {
         const cutoff = new Date(loginAt).getTime();
-        const BUFFER_MS = 24*3600*1000; // allow 1 day earlier to keep initial messages
+        const BUFFER_MS = 24*3600*1000;
         msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= cutoff - BUFFER_MS);
       }
 
@@ -170,7 +122,6 @@
     }
   }
 
-  // Merge two sorted asc lists (by timestamp) without dupes
   function mergeChronologically(a, b){
     const out = [];
     let i=0,j=0;
@@ -205,16 +156,143 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       input.value = '';
       reachedEnd = false;
-      await fetchBatch();  // refresh latest (user + bot)
+      await fetchBatch();
       wrap.scrollTop = wrap.scrollHeight;
-    }catch(e){ console.error(e); }
+    }catch(e){ 
+      console.error(e);
+      alert('Failed to send message. Please try again.');
+    }
     finally{ sendBtn.disabled = false; input.focus(); }
   }
 
   form?.addEventListener('submit', (e)=>{ e.preventDefault(); send(); });
   sendBtn?.addEventListener('click', (e)=>{ e.preventDefault(); send(); });
 
-  // Pull-to-unlock with resistance & double pull
+  // ----- Voice Recording -----
+  async function toggleRecording() {
+    if (isRecording) {
+      // Stop recording
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    } else {
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+          isRecording = false;
+          callBtn.innerHTML = `<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07A19.5 19.5 0 0 1 3.15 8.81 19.8 19.8 0 0 1 .08 0.18 2 2 0 0 1 2.06 0h3a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .65 2.73 2 2 0 0 1-.45 2.11L6.1 8.9a16 16 0 0 0 9 9l2.34-1.16a2 2 0 0 1 2.11.45 12.05 12.05 0 0 0 2.73.65A2 2 0 0 1 22 16.92z"/>
+          </svg>`;
+          callBtn.title = 'Start Voice Recording';
+          
+          // Stop all tracks
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Send audio
+          await sendAudio();
+        };
+        
+        mediaRecorder.start();
+        isRecording = true;
+        
+        // Update button to show recording state
+        callBtn.innerHTML = `<svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
+        </svg>`;
+        callBtn.title = 'Stop Recording';
+        
+      } catch (err) {
+        console.error('Error accessing microphone:', err);
+        alert('Could not access microphone. Please check permissions.');
+      }
+    }
+  }
+
+  async function sendAudio() {
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    
+    // Add temporary "processing" message
+    const tempMsg = {
+      role: 'bot',
+      text: '🎤 Processing your voice message...',
+      timestamp: new Date().toISOString()
+    };
+    newestBatch.push(tempMsg);
+    renderAll();
+    
+    try {
+      const response = await fetch('/api/voice/interact', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Voice processing failed');
+      }
+      
+      // Remove temp message
+      newestBatch.pop();
+      
+      // Play audio response
+      const audioResponseBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioResponseBlob);
+      const audio = new Audio(audioUrl);
+      
+      audio.play().catch(e => {
+        console.error('Autoplay prevented:', e);
+        alert('Audio response ready. Click to play.');
+      });
+      
+      // Refresh messages to show transcription and response
+      reachedEnd = false;
+      await fetchBatch();
+      wrap.scrollTop = wrap.scrollHeight;
+      
+    } catch (err) {
+      console.error('Error sending audio:', err);
+      newestBatch.pop();
+      renderAll();
+      alert(`Voice error: ${err.message}`);
+    }
+  }
+
+  // Voice button click handler
+  callBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    
+    // Check if voice is available
+    try {
+      const checkRes = await fetch('/api/voice/start', { method: 'POST' });
+      const checkData = await checkRes.json();
+      
+      if (!checkData.ok) {
+        alert(checkData.message);
+        return;
+      }
+      
+      // Start/stop recording
+      toggleRecording();
+      
+    } catch (err) {
+      console.error('Voice check error:', err);
+      alert('Voice features are not available.');
+    }
+  });
+
+  // Pull-to-unlock
   wrap.addEventListener('scroll', async ()=>{
     if (wrap.scrollTop <= 8){
       pullHint.classList.add('visible');
@@ -242,9 +320,29 @@
     }
   });
 
+  // Check for notifications periodically
+  async function checkNotifications() {
+    try {
+      const res = await fetch('/api/get-notifications');
+      const data = await res.json();
+      if (data.notifications && data.notifications.length > 0) {
+        // Show notification as bot message
+        const notif = data.notifications[0];
+        const user = await fetch('/api/messages').then(r => r.ok);
+        if (user) {
+          await fetchBatch();
+        }
+      }
+    } catch (err) {
+      console.error('Notification check error:', err);
+    }
+  }
+
+  // Poll for notifications every 5 seconds
+  setInterval(checkNotifications, 5000);
+
   // init
   window.addEventListener('DOMContentLoaded', async ()=>{
-    await loadPrefs();
     await fetchBatch();
     wrap.scrollTop = wrap.scrollHeight;
   });

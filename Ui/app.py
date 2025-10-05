@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
 """
-ScarletAgent — WOW landing + smooth chat
+ScarletAgent — Combined UI/UX + AI Voice Integration
+Merges beautiful chat interface with ElevenLabs voice and Gemini agent
 """
 import os
+import io
+import threading
 from datetime import datetime, timedelta
-from flask import Flask, request, redirect, url_for, session, jsonify, make_response, render_template, g
+from flask import Flask, request, redirect, url_for, session, jsonify, make_response, render_template, g, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+from elevenlabs.client import ElevenLabs
 
-from snowflake.db_helper import init_db, User, Message
+# Database imports
+from snowflake.db_helper import (
+    init_db, get_db,
+    add_user, get_user_by_username, get_user_by_id,
+    upsert_message_history, get_message_history
+)
+
+# Agent imports
+from agents.intake import INTAKE
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.update(
@@ -18,6 +34,25 @@ app.config.update(
 
 # Initialize DB schema
 init_db()
+
+# Initialize ElevenLabs
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY) if ELEVENLABS_API_KEY else None
+if elevenlabs_client:
+    print("✓ ElevenLabs client initialized")
+
+# Inactivity timer
+inactivity_timer = None
+NOTIFICATIONS = []
+
+def handle_inactivity():
+    """Called when user is inactive for 5 minutes"""
+    print("\n--- User inactive for 5 minutes. Ending conversation. ---")
+    try:
+        INTAKE.run("the user is inactive")
+    except Exception as e:
+        print(f"Error in inactivity handler: {e}")
 
 # ------------------ per-request DB connection ------------------
 def conn():
@@ -32,27 +67,41 @@ def close_db(_exc):
         db.close()
 
 # ------------------ helpers ------------------
-def norm_username(u): return (u or "").strip().lower()
+def norm_username(u): 
+    return (u or "").strip().lower()
 
 def current_user():
     uname = session.get("user")
     if not uname:
         return None
-    return User.get_by_username(conn(), uname)
+    user_dict = get_user_by_username(conn(), uname)
+    return user_dict
 
 def new_chat_session(user):
-    sid = f"{user.username}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-    session["current_chat"] = sid
+    """Initialize new chat session"""
     session["login_at"] = datetime.utcnow().isoformat()
-    return sid
+    # Load existing message history
+    history = get_message_history(conn(), user['ID']) or {"messages": []}
+    return history
 
-def get_current_chat():
-    return session.get("current_chat")
+def get_message_history_for_user():
+    """Get message history for current user"""
+    user = current_user()
+    if not user:
+        return {"messages": []}
+    history = get_message_history(conn(), user['ID'])
+    return history or {"messages": []}
 
 def add_message(user, role, text):
-    Message.create(conn(), user.id, role, text, get_current_chat())
+    """Add a message to user's history"""
+    history = get_message_history(conn(), user['ID']) or {"messages": []}
+    history["messages"].append({
+        "role": role,
+        "text": text,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    upsert_message_history(conn(), user['ID'], history)
 
-# Make `user` available in all templates (optional convenience)
 @app.context_processor
 def inject_user():
     return {"nav_user": session.get("user")}
@@ -76,11 +125,11 @@ def signup():
         n = (request.form.get("name") or "").strip() or u
         if not u or not p:
             err = "Username and password required."
-        elif User.get_by_username(conn(), u):
+        elif get_user_by_username(conn(), u):
             err = "Username already exists."
         else:
             password_hash = generate_password_hash(p)
-            user = User.create(conn(), u, n, password_hash)
+            user = add_user(conn(), u, n, password_hash)
             if user:
                 session["user"] = u
                 new_chat_session(user)
@@ -96,27 +145,18 @@ def login():
     if request.method == "POST":
         u = norm_username(request.form.get("username"))
         p = (request.form.get("password") or "").strip()
-        user = User.get_by_username(conn(), u)
-        if user and check_password_hash(user.password_hash, p):
+        user = get_user_by_username(conn(), u)
+        if user and check_password_hash(user['PASSWORD_HASH'], p):
             session["user"] = u
             new_chat_session(user)
             return redirect(url_for("chat"))
         err = "Invalid username or password."
     return render_template("auth.html", heading="Sign in", cta="Sign in", mode="login", error=err)
 
-# Accept GET too (nice UX)
 @app.route("/logout", methods=["POST", "GET"])
 def logout():
     session.clear()
     return redirect(url_for("home"))
-
-@app.post("/new_chat")
-def new_chat():
-    user = current_user()
-    if not user:
-        return redirect(url_for("login"))
-    new_chat_session(user)
-    return redirect(url_for("chat"))
 
 @app.get("/chat")
 def chat():
@@ -135,55 +175,6 @@ def profile():
 def about():
     return render_template("about.html", title="About Us")
 
-# ---------- preferences API ----------
-@app.get("/api/prefs")
-def get_prefs():
-    user = current_user()
-    if not user:
-        return make_response(jsonify({"error": "unauthorized"}), 401)
-    return jsonify({
-        "avatar_gender": user.avatar_gender or "person",
-        "avatar_tone": user.avatar_tone or "default"
-    })
-
-@app.post("/api/prefs")
-def set_prefs():
-    user = current_user()
-    if not user:
-        return make_response(jsonify({"error": "unauthorized"}), 401)
-    data = request.get_json(force=True)
-    gender = (data.get("avatar_gender") or "person").lower()
-    tone = (data.get("avatar_tone") or "default").lower()
-    if gender not in {"man", "woman", "person"}:
-        gender = "person"
-    if tone not in {"default", "light", "medium", "dark", "darker", "darkest"}:
-        tone = "default"
-    user.update_preferences(conn(), gender, tone)
-    return jsonify({"ok": True})
-
-@app.post("/api/store_main")
-def store_main():
-    data = request.get_json(force=True)
-    profile_id = data.get("profile_id")
-    primary_email = data.get("primary_email")
-    canvas_json = data.get("canvas_json")
-    gcal_token_json = data.get("gcal_token_json")
-    gdrive_token_json = data.get("gdrive_token_json")
-
-    ok = User.upsert_record(db, profile_id, primary_email, canvas_json, gcal_token_json, gdrive_token_json)
-    if ok:
-        return jsonify({"ok": True})
-    else:
-        return jsonify({"ok": False}), 500
-
-# ---------- voice placeholder ----------
-@app.post("/api/voice/start")
-def voice_start():
-    user = current_user()
-    if not user:
-        return make_response(jsonify({"error": "unauthorized"}), 401)
-    return jsonify({"ok": True, "message": "Voice call placeholder. ElevenLabs integration pending."})
-
 # ---------- messages API ----------
 @app.get("/api/messages")
 def get_messages():
@@ -191,66 +182,183 @@ def get_messages():
     if not user:
         return make_response(jsonify({"error":"unauthorized"}), 401)
 
+    history = get_message_history(conn(), user['ID']) or {"messages": []}
+    messages = history.get("messages", [])
+    
+    # Filter by before timestamp if provided
     before = request.args.get("before")
-    msgs = Message.get_messages(
-        conn(),
-        user.id,
-        chat_session=get_current_chat(),
-        before=before,
-        limit=20
-    )
-    msgs.reverse()
-    oldest = msgs[0].timestamp.isoformat() if msgs else None
+    if before:
+        before_dt = datetime.fromisoformat(before)
+        messages = [m for m in messages if datetime.fromisoformat(m["timestamp"]) < before_dt]
+    
+    # Return last 20 messages
+    messages = messages[-20:]
+    oldest = messages[0]["timestamp"] if messages else None
 
     return jsonify({
-        "messages": [
-            {"role": m.role, "text": m.text, "timestamp": m.timestamp.isoformat()}
-            for m in msgs
-        ],
+        "messages": messages,
         "oldest": oldest,
         "login_at": session.get("login_at")
     })
 
 @app.post("/api/message")
 def post_message():
+    global inactivity_timer
+    
     user = current_user()
     if not user:
         return make_response(jsonify({"error": "unauthorized"}), 401)
+    
+    # Cancel existing timer
+    if inactivity_timer:
+        inactivity_timer.cancel()
+    
     data = request.get_json(force=True)
     text = (data.get("text") or "").strip()
+    
     if not text:
         return make_response(jsonify({"error": "empty"}), 400)
+    
+    # Add user message
     add_message(user, "user", text)
-    add_message(user, "bot", f"Message received: '{text}'")
+    
+    # Get AI response
+    try:
+        agent_response = INTAKE.run(text)
+        
+        # Check for end message
+        if "{[\\THIS IS THE END MESSAGE/]}" in agent_response:
+            agent_response = agent_response.replace("{[\\THIS IS THE END MESSAGE/]}", "").strip()
+            if not agent_response:
+                agent_response = "Consider it done."
+        
+        add_message(user, "bot", agent_response)
+        
+    except Exception as e:
+        print(f"Agent error: {e}")
+        agent_response = "I'm having trouble processing that. Can you try again?"
+        add_message(user, "bot", agent_response)
+    
+    # Reset inactivity timer (5 minutes)
+    inactivity_timer = threading.Timer(300.0, handle_inactivity)
+    inactivity_timer.start()
+    
     return jsonify({"ok": True})
 
-# ---------- cache flush (client → server) ----------
-@app.post("/api/flush_messages")
-def flush_messages():
+# ---------- voice integration ----------
+@app.post("/api/voice/interact")
+def voice_interact():
+    global inactivity_timer
+    
     user = current_user()
     if not user:
         return make_response(jsonify({"error": "unauthorized"}), 401)
-    data = request.get_json(force=True)
-    messages = data.get("messages", [])
+    
+    if not elevenlabs_client:
+        return make_response(jsonify({"error": "ElevenLabs not configured"}), 500)
+    
+    # Cancel existing timer
+    if inactivity_timer:
+        inactivity_timer.cancel()
+    
+    try:
+        # Get audio from request
+        audio_file = request.files.get('audio')
+        if not audio_file:
+            return make_response(jsonify({"error": "No audio provided"}), 400)
+        
+        # Transcribe audio
+        transcribed_response = elevenlabs_client.speech_to_text.convert(
+            file=audio_file.read(), 
+            model_id="scribe_v1"
+        )
+        user_text = transcribed_response.text
+        
+        if not user_text:
+            return make_response(jsonify({"error": "Could not transcribe audio"}), 400)
+        
+        # Add user message
+        add_message(user, "user", user_text)
+        
+        # Get AI response
+        agent_response = INTAKE.run(user_text)
+        
+        # Check for end message
+        if "{[\\THIS IS THE END MESSAGE/]}" in agent_response:
+            agent_response = agent_response.replace("{[\\THIS IS THE END MESSAGE/]}", "").strip()
+            if not agent_response:
+                agent_response = "Consider it done."
+        
+        add_message(user, "bot", agent_response)
+        
+        # Convert response to speech
+        audio_generator = elevenlabs_client.text_to_speech.convert(
+            voice_id=ELEVENLABS_VOICE_ID,
+            text=agent_response
+        )
+        full_audio_bytes = b"".join(audio_generator)
+        
+        # Reset inactivity timer
+        inactivity_timer = threading.Timer(300.0, handle_inactivity)
+        inactivity_timer.start()
+        
+        return send_file(io.BytesIO(full_audio_bytes), mimetype='audio/mpeg')
+        
+    except Exception as e:
+        print(f"Voice interaction error: {e}")
+        return make_response(jsonify({"error": str(e)}), 500)
 
-    flushed_count = 0
-    for msg in messages:
-        role = msg.get("role")
-        text = msg.get("text")
-        if role and text:
-            Message.create(conn(), user.id, role, text, get_current_chat())
-            flushed_count += 1
+@app.post("/api/voice/start")
+def voice_start():
+    user = current_user()
+    if not user:
+        return make_response(jsonify({"error": "unauthorized"}), 401)
+    
+    if not elevenlabs_client:
+        return jsonify({
+            "ok": False, 
+            "message": "Voice features require ElevenLabs API key. Please configure in .env file."
+        })
+    
+    return jsonify({
+        "ok": True, 
+        "message": "Voice ready! Use the microphone button to start recording."
+    })
 
-    return jsonify({"ok": True, "flushed": flushed_count})
+# ---------- notifications API ----------
+@app.post("/api/notify")
+def notify():
+    """Receives notifications from orchestrator"""
+    global NOTIFICATIONS
+    message = request.json.get("message")
+    if message:
+        print(f"\n--- Storing Notification: '{message}' ---\n")
+        NOTIFICATIONS.append(message)
+    return jsonify({"status": "notification stored"}), 200
+
+@app.get("/api/get-notifications")
+def get_notifications():
+    """Returns pending notifications"""
+    global NOTIFICATIONS
+    notifications_to_send = list(NOTIFICATIONS)
+    NOTIFICATIONS.clear()
+    return jsonify({"notifications": notifications_to_send})
 
 # ---------- errors ----------
 @app.errorhandler(403)
-def e403(_): return render_template("base.html", title="403 Forbidden"), 403
+def e403(_): 
+    return render_template("base.html", title="403 Forbidden"), 403
 
 @app.errorhandler(404)
-def e404(_): return render_template("base.html", title="404 Not Found"), 404
+def e404(_): 
+    return render_template("base.html", title="404 Not Found"), 404
 
 if __name__ == "__main__":
     os.makedirs("static/images", exist_ok=True)
-    print("\nScarletAgent → http://localhost:5000\n")
+    print("\n" + "="*50)
+    print("🎓 ScarletAgent → http://localhost:5000")
+    print("="*50)
+    if not ELEVENLABS_API_KEY:
+        print("⚠️  ElevenLabs API key not found - voice features disabled")
+    print()
     app.run(host="127.0.0.1", port=5000, debug=True)
