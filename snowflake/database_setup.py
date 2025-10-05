@@ -38,7 +38,6 @@ class DatabaseManager:
                 warehouse=os.getenv('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
                 database=os.getenv('SNOWFLAKE_DATABASE', 'SNOWFLAKE_LEARNING_DB'),
                 schema=os.getenv('SNOWFLAKE_SCHEMA', 'PUBLIC'),
-                # SECURITY FIX: Change default from ACCOUNTADMIN to SYSADMIN or a custom role
                 role=os.getenv('SNOWFLAKE_ROLE', 'SYSADMIN') 
             )
             
