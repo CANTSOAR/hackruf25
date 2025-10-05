@@ -113,7 +113,6 @@ def root():
 
 @app.get("/home")
 def home():
-    os.makedirs("static/images", exist_ok=True)
     return render_template("home.html", title="Home")
 
 @app.route("/signup", methods=["GET", "POST"])
