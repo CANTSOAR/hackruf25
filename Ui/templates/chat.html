@@ -2,81 +2,58 @@
 {% block content %}
 <section class="max-w-3xl mx-auto px-4 mt-10">
 
-  <!-- Center header (mascot + title) + Call btn -->
-  <div class="relative flex items-center justify-center mb-4">
-    <div class="flex flex-col items-center">
-      <div class="h-20 w-20 rounded-full ring-1 ring-zinc-700 shadow-xl glass">
-        <img src="{{ url_for('static', filename='images/rutgers_mascot.png') }}"
-             class="h-full w-full rounded-full object-cover mascot-avatar" alt="Mascot"/>
-      </div>
-      <div class="mt-2 text-xl font-extrabold leading-none">
-        <span class="text-white">Scarlet</span><span class="text-[var(--accent)]">Agent</span>
-      </div>
+  <!-- Header -->
+  <div class="relative mb-6 flex flex-col items-center">
+    <div class="h-20 w-20 rounded-full ring-1 ring-zinc-700 shadow-xl glass">
+      <img src="{{ url_for('static', filename='images/rutgers_mascot.png') }}"
+           class="h-full w-full rounded-full object-cover mascot-avatar" alt="Mascot"/>
     </div>
-
-    <!-- Call icon button (right) -->
-    <button id="callBtn"
-            class="call-btn absolute right-0 top-2"
-            title="Call (placeholder)">
-      <svg viewBox="0 0 24 24" class="h-6 w-6">
-        <path d="M14 10V7a2 2 0 0 0-2-2H5C3.9 5 3 5.9 3 7v10c0 1.1.9 2 2 2h7a2 2 0 0 0 2-2v-3l6 4V6l-6 4z"
-              fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
+    <div class="mt-2 text-xl font-extrabold leading-none text-center">
+      <span class="text-white">Scarlet</span>
+      <span class="text-[var(--accent)]">Agent</span>
+    </div>
   </div>
 
-  <!-- Chat box -->
+  <!-- Chat area -->
   <div id="chatWrap" class="relative">
     <div id="pullHint" class="pull-hint">Pull to see previous chat…</div>
     <div id="chat" class="chat-box glass"></div>
   </div>
 
   <!-- Composer -->
-  <form id="msgForm" class="sticky bottom-0 mt-4 flex gap-3" onsubmit="return false">
-    <button id="prefsOpen" type="button" class="px-3 py-2 glass sm-btn hover:brightness-110">
-      🎭 Customize emoji
-    </button>
-    <input id="msgInput" placeholder="Type your message..." required
-           class="flex-1 px-3 py-2 rounded-xl bg-zinc-950/70 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50">
-    <button id="sendBtn" class="px-5 py-2 neon-btn rounded-xl font-semibold">Send</button>
+  <form id="msgForm" class="sticky bottom-0 mt-4" onsubmit="return false">
+    <div class="composer glass">
+
+      <!-- Scarlet Call Button -->
+      <button id="callBtn" type="button" class="composer-btn call-btn-red" title="Start Call">
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07A19.5 19.5 0 0 1 3.15 8.81 19.8 19.8 0 0 1 .08 0.18 2 2 0 0 1 2.06 0h3a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .65 2.73 2 2 0 0 1-.45 2.11L6.1 8.9a16 16 0 0 0 9 9l2.34-1.16a2 2 0 0 1 2.11.45 12.05 12.05 0 0 0 2.73.65A2 2 0 0 1 22 16.92z"/>
+        </svg>
+      </button>
+
+      <!-- Input -->
+      <div class="input-wrap">
+        <input id="msgInput" placeholder="Type your message..." required class="input-pill">
+      </div>
+
+      <!-- Send -->
+      <button id="sendBtn" class="send-fab" title="Send">
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2 11 13"/>
+          <path d="M22 2 15 22l-4-9-9-4 20-7z"/>
+        </svg>
+      </button>
+    </div>
   </form>
 </section>
 
-<!-- Preferences Modal -->
-<div id="prefsModal" class="modal hidden">
-  <div class="modal-content">
-    <h3 class="text-lg font-semibold mb-2">Customize your emoji</h3>
-    <div class="grid gap-3">
-      <div>
-        <label class="block mb-1 text-sm text-zinc-400">Gender</label>
-        <div class="flex gap-3">
-          <label><input type="radio" name="gender" value="person" checked> Person</label>
-          <label><input type="radio" name="gender" value="man"> Man</label>
-          <label><input type="radio" name="gender" value="woman"> Woman</label>
-        </div>
-      </div>
-      <div>
-        <label class="block mb-1 text-sm text-zinc-400">Skin tone</label>
-        <select id="toneSel" class="bg-zinc-900 border border-zinc-800 rounded px-2 py-1">
-          <option value="default">Default</option>
-          <option value="light">Light</option>
-          <option value="medium">Medium</option>
-          <option value="dark">Dark</option>
-          <option value="darker">Darker</option>
-          <option value="darkest">Darkest</option>
-        </select>
-      </div>
-      <div class="flex items-center gap-3">
-        <div>Preview:</div>
-        <div id="emojiPreview" class="text-2xl">🧑</div>
-      </div>
-    </div>
-    <div class="mt-4 flex justify-end gap-2">
-      <button id="prefsSave" class="px-3 py-1 bg-[var(--accent)] rounded-md">Save</button>
-      <button id="prefsClose" class="px-3 py-1 bg-zinc-800 rounded-md">Close</button>
-    </div>
-  </div>
-</div>
-
+<!-- JS -->
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+<script>
+  document.getElementById('callBtn')?.addEventListener('click', () => {
+    alert('Voice call feature coming soon!');
+  });
+</script>
 {% endblock %}

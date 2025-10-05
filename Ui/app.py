@@ -2,10 +2,10 @@
 """
 ScarletAgent — WOW landing + smooth chat
 """
-from flask import Flask, request, redirect, url_for, session, jsonify, make_response, render_template
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
+from flask import Flask, request, redirect, url_for, session, jsonify, make_response, render_template, g
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from Ui.models import init_db, get_db, User, Message
 
@@ -16,8 +16,20 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
 )
 
-# Initialize Snowflake DB
-db = init_db()
+# Initialize DB schema
+init_db()
+
+# ------------------ per-request DB connection ------------------
+def conn():
+    if "db" not in g:
+        g.db = get_db()
+    return g.db
+
+@app.teardown_appcontext
+def close_db(_exc):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
 
 # ------------------ helpers ------------------
 def norm_username(u): return (u or "").strip().lower()
@@ -26,7 +38,7 @@ def current_user():
     uname = session.get("user")
     if not uname:
         return None
-    return User.get_by_username(db, uname)
+    return User.get_by_username(conn(), uname)
 
 def new_chat_session(user):
     sid = f"{user.username}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
@@ -38,7 +50,12 @@ def get_current_chat():
     return session.get("current_chat")
 
 def add_message(user, role, text):
-    Message.create(db, user.id, role, text, get_current_chat())
+    Message.create(conn(), user.id, role, text, get_current_chat())
+
+# Make `user` available in all templates (optional convenience)
+@app.context_processor
+def inject_user():
+    return {"nav_user": session.get("user")}
 
 # ------------------ routes ------------------
 @app.get("/")
@@ -59,11 +76,11 @@ def signup():
         n = (request.form.get("name") or "").strip() or u
         if not u or not p:
             err = "Username and password required."
-        elif User.get_by_username(db, u):
+        elif User.get_by_username(conn(), u):
             err = "Username already exists."
         else:
             password_hash = generate_password_hash(p)
-            user = User.create(db, u, n, password_hash)
+            user = User.create(conn(), u, n, password_hash)
             if user:
                 session["user"] = u
                 new_chat_session(user)
@@ -79,7 +96,7 @@ def login():
     if request.method == "POST":
         u = norm_username(request.form.get("username"))
         p = (request.form.get("password") or "").strip()
-        user = User.get_by_username(db, u)
+        user = User.get_by_username(conn(), u)
         if user and check_password_hash(user.password_hash, p):
             session["user"] = u
             new_chat_session(user)
@@ -87,7 +104,8 @@ def login():
         err = "Invalid username or password."
     return render_template("auth.html", heading="Sign in", cta="Sign in", mode="login", error=err)
 
-@app.post("/logout")
+# Accept GET too (nice UX)
+@app.route("/logout", methods=["POST", "GET"])
 def logout():
     session.clear()
     return redirect(url_for("home"))
@@ -105,6 +123,17 @@ def chat():
     if not current_user():
         return redirect(url_for("login"))
     return render_template("chat.html", title="Messages")
+
+@app.get("/profile")
+def profile():
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    return render_template("profile.html", title="Profile Settings", user=user)
+
+@app.get("/about")
+def about():
+    return render_template("about.html", title="About Us")
 
 # ---------- preferences API ----------
 @app.get("/api/prefs")
@@ -129,7 +158,7 @@ def set_prefs():
         gender = "person"
     if tone not in {"default", "light", "medium", "dark", "darker", "darkest"}:
         tone = "default"
-    user.update_preferences(db, gender, tone)
+    user.update_preferences(conn(), gender, tone)
     return jsonify({"ok": True})
 
 # ---------- voice placeholder ----------
@@ -149,7 +178,7 @@ def get_messages():
 
     before = request.args.get("before")
     msgs = Message.get_messages(
-        db,
+        conn(),
         user.id,
         chat_session=get_current_chat(),
         before=before,
@@ -167,7 +196,6 @@ def get_messages():
         "login_at": session.get("login_at")
     })
 
-
 @app.post("/api/message")
 def post_message():
     user = current_user()
@@ -181,8 +209,7 @@ def post_message():
     add_message(user, "bot", f"Message received: '{text}'")
     return jsonify({"ok": True})
 
-# ----------cache-------------
-
+# ---------- cache flush (client → server) ----------
 @app.post("/api/flush_messages")
 def flush_messages():
     user = current_user()
@@ -196,11 +223,10 @@ def flush_messages():
         role = msg.get("role")
         text = msg.get("text")
         if role and text:
-            Message.create(db, user.id, role, text, get_current_chat())
+            Message.create(conn(), user.id, role, text, get_current_chat())
             flushed_count += 1
 
     return jsonify({"ok": True, "flushed": flushed_count})
-
 
 # ---------- errors ----------
 @app.errorhandler(403)

@@ -5,27 +5,92 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{{ title or "ScarletAgent" }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=navfinal" />
 </head>
-<body>
-<header class="glassbar sticky top-0 z-40">
-  <div class="max-w-5xl mx-auto flex items-center justify-between px-4 py-3">
-    <div class="font-black text-xl leading-none select-none">
-      <span class="text-white">Scarlet</span><span class="text-[var(--accent)]">Agent</span>
+
+<body class="bg-[#0b0b0f] text-white">
+  <!-- Navbar -->
+  <header class="glassbar sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+      <!-- Left: Brand -->
+      <a href="{{ url_for('home') }}" class="font-black text-xl leading-none select-none">
+        <span class="text-white">Scarlet</span><span class="text-[var(--accent)]">Agent</span>
+      </a>
+
+      <!-- Right: Navigation and Profile -->
+      <div class="flex items-center gap-6">
+        <!-- Links near profile -->
+        <nav class="hidden sm:flex items-center gap-5 text-sm">
+          <a href="{{ url_for('chat') }}" class="hover:opacity-80">Messages</a>
+          <a href="{{ url_for('about') }}" class="hover:opacity-80">About Us</a>
+        </nav>
+
+        <!-- Profile dropdown -->
+        <div class="relative">
+          {% set user = session.get('user') %}
+          <button id="navProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false"
+                  class="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 transition">
+            <span class="inline-grid place-items-center h-8 w-8 rounded-full ring-1 ring-zinc-700 bg-zinc-900 overflow-hidden">
+              {% if user %}
+                <span class="text-xs font-semibold text-zinc-200">{{ user[:2] }}</span>
+              {% else %}
+                <img src="{{ url_for('static', filename='images/rutgers_mascot.png') }}"
+                     class="h-full w-full object-cover" alt="avatar" />
+              {% endif %}
+            </span>
+            {% if user %}
+              <span class="hidden sm:inline text-sm">{{ user }}</span>
+            {% endif %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" class="opacity-80">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown -->
+          <div id="navMenu" role="menu"
+               class="hidden absolute right-0 mt-2 w-48 max-w-[calc(100vw-1rem)] rounded-xl border border-zinc-800 bg-[#0f0f14] shadow-xl overflow-hidden">
+            {% if user %}
+              <a class="block px-3 py-2 hover:bg-white/5" href="{{ url_for('profile') }}" role="menuitem">Profile</a>
+              <form method="post" action="{{ url_for('logout') }}">
+                <button class="block w-full text-left px-3 py-2 hover:bg-white/5" role="menuitem">Logout</button>
+              </form>
+            {% else %}
+              <a class="block px-3 py-2 hover:bg-white/5" href="{{ url_for('signup') }}" role="menuitem">Sign Up</a>
+              <a class="block px-3 py-2 hover:bg-white/5" href="{{ url_for('login') }}" role="menuitem">Login</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
-    <nav class="flex items-center gap-3 text-sm">
-      <a href="{{ url_for('home') }}" class="hover:opacity-80">Home</a>
-      {% if session.get('user') %}
-        <a href="{{ url_for('chat') }}" class="hover:opacity-80">Messages</a>
-        <form action="{{ url_for('logout') }}" method="post" class="inline">
-          <button class="px-3 py-1.5 bg-zinc-800/60 rounded-md hover:bg-zinc-700">Logout</button>
-        </form>
-      {% else %}
-        <a href="{{ url_for('login') }}" class="px-3 py-1.5 bg-[var(--accent)] rounded-md hover:brightness-110 font-semibold">Sign In</a>
-      {% endif %}
-    </nav>
-  </div>
-</header>
-{% block content %}{% endblock %}
+
+    <!-- Mobile row -->
+    <div class="sm:hidden px-4 pb-3 flex gap-5 text-sm justify-end">
+      <a class="hover:opacity-80" href="{{ url_for('chat') }}">Messages</a>
+      <a class="hover:opacity-80" href="{{ url_for('about') }}">About Us</a>
+    </div>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <!-- Dropdown JS -->
+  <script>
+    (function () {
+      const btn  = document.getElementById('navProfileBtn');
+      const menu = document.getElementById('navMenu');
+      if (!btn || !menu) return;
+      const hide = () => {
+        menu.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
+      };
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = menu.classList.toggle('hidden');
+        btn.setAttribute('aria-expanded', String(!open));
+      });
+      document.addEventListener('click', hide);
+      window.addEventListener('blur', hide);
+    })();
+  </script>
 </body>
 </html>

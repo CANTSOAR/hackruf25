@@ -1,231 +1,192 @@
-"""
-Snowflake Database Models for ScarletAgent (fixed)
-"""
-import snowflake.connector
-from snowflake.connector import Error
+# Ui/models.py
 import os
+import sqlite3
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional, List
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "chat.db")
 
-class SnowflakeDB:
-    """Snowflake database connection manager"""
-    
-    def __init__(self):
-        self.connection = None
-        self.cursor = None
-        
-    def connect(self):
-        """Establish connection to Snowflake"""
-        try:
-            self.connection = snowflake.connector.connect(
-                user=os.getenv('SNOWFLAKE_USER', 'LAWRENCIUMX'),
-                password=os.getenv('SNOWFLAKE_PASSWORD', 'EdUZZWw76XcvDJ9'),
-                account=os.getenv('SNOWFLAKE_ACCOUNT', 'TMLYSUD-QO29207'),
-                warehouse=os.getenv('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH'),
-                database=os.getenv('SNOWFLAKE_DATABASE', 'SNOWFLAKE_LEARNING_DB'),
-                schema=os.getenv('SNOWFLAKE_SCHEMA', 'PUBLIC'),
-                role=os.getenv('SNOWFLAKE_ROLE', 'SYSADMIN')
-            )
-            self.cursor = self.connection.cursor()
-            return True
-        except Error as e:
-            print(f"Snowflake connection error: {e}")
-            return False
-    
-    def init_tables(self):
-        """Create tables if they don't exist"""
-        try:
-            # Users table
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS scarlet_users (
-                    id INTEGER AUTOINCREMENT,
-                    username VARCHAR(100) UNIQUE NOT NULL,
-                    name VARCHAR(200),
-                    password_hash VARCHAR(255) NOT NULL,
-                    avatar_gender VARCHAR(20) DEFAULT 'person',
-                    avatar_tone VARCHAR(20) DEFAULT 'default',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
-                    PRIMARY KEY (id)
-                )
-            """)
-            
-            # Messages table
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS scarlet_messages (
-                    id INTEGER AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    role VARCHAR(20) NOT NULL,
-                    text STRING NOT NULL,
-                    chat_session VARCHAR(200),
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
-                    PRIMARY KEY (id),
-                    FOREIGN KEY (user_id) REFERENCES scarlet_users(id)
-                )
-            """)
+# ---------------------- connection helpers ----------------------
+def get_db():
+    # allow cross-thread use in Flask debug server
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-            
-            
-            self.connection.commit()
-            print("✓ Snowflake tables initialized")
-            
-        except Error as e:
-            print(f"Error initializing tables: {e}")
-    
-    def close(self):
-        """Close database connection"""
-        if self.cursor:
-            self.cursor.close()
-        if self.connection:
-            self.connection.close()
+def _column_exists(conn: sqlite3.Connection, table: str, col: str) -> bool:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(r["name"] == col for r in cur.fetchall())
 
+def _ensure_column(conn: sqlite3.Connection, table: str, col: str, decl: str):
+    if not _column_exists(conn, table, col):
+        cur = conn.cursor()
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+        conn.commit()
 
+def init_db():
+    os.makedirs(BASE_DIR, exist_ok=True)
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Base tables (create if not exists)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            chat_session TEXT,
+            role TEXT NOT NULL,          -- 'user' | 'bot'
+            text TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+
+    # --- Lightweight migrations / column adds ---
+    # users: avatar prefs
+    _ensure_column(conn, "users", "avatar_gender", "TEXT DEFAULT 'person'")
+    _ensure_column(conn, "users", "avatar_tone",   "TEXT DEFAULT 'default'")
+    cur.execute("UPDATE users SET avatar_gender = COALESCE(avatar_gender, 'person')")
+    cur.execute("UPDATE users SET avatar_tone   = COALESCE(avatar_tone,   'default')")
+
+    # messages: ISO timestamp column `ts`
+    _ensure_column(conn, "messages", "ts", "TEXT")
+    # backfill any NULL/empty ts with a proper ISO (UTC) string
+    cur.execute("""
+        UPDATE messages
+        SET ts = COALESCE(NULLIF(ts,''), strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        WHERE ts IS NULL OR ts = ''
+    """)
+
+    conn.commit()
+    conn.close()  # close setup connection
+
+# ---------------------- models ----------------------
+@dataclass
 class User:
-    """User model for Snowflake"""
-    
-    def __init__(self, id=None, username=None, name=None, password_hash=None, 
-                 avatar_gender='person', avatar_tone='default'):
-        self.id = id
-        self.username = username
-        self.name = name
-        self.password_hash = password_hash
+    id: int
+    username: str
+    name: str
+    password_hash: str
+    avatar_gender: str = "person"
+    avatar_tone: str = "default"
+
+    @staticmethod
+    def _row_to_user(row: sqlite3.Row) -> "User":
+        return User(
+            id=row["id"],
+            username=row["username"],
+            name=row["name"],
+            password_hash=row["password_hash"],
+            avatar_gender=row["avatar_gender"],
+            avatar_tone=row["avatar_tone"],
+        )
+
+    @staticmethod
+    def get_by_username(db, username: str) -> Optional["User"]:
+        cur = db.cursor()
+        cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+        row = cur.fetchone()
+        return User._row_to_user(row) if row else None
+
+    @staticmethod
+    def create(db, username: str, name: str, password_hash: str) -> Optional["User"]:
+        try:
+            cur = db.cursor()
+            cur.execute(
+                "INSERT INTO users (username, name, password_hash) VALUES (?,?,?)",
+                (username, name, password_hash),
+            )
+            db.commit()
+            uid = cur.lastrowid
+            return User(id=uid, username=username, name=name, password_hash=password_hash)
+        except sqlite3.IntegrityError:
+            return None
+
+    def update_preferences(self, db, avatar_gender: str, avatar_tone: str) -> None:
+        cur = db.cursor()
+        cur.execute(
+            "UPDATE users SET avatar_gender=?, avatar_tone=? WHERE id=?",
+            (avatar_gender, avatar_tone, self.id),
+        )
+        db.commit()
         self.avatar_gender = avatar_gender
         self.avatar_tone = avatar_tone
-    
-    @staticmethod
-    def create(db, username, name, password_hash):
-        """Create a new user"""
-        try:
-            db.cursor.execute("""
-                INSERT INTO scarlet_users (username, name, password_hash)
-                VALUES (%s, %s, %s)
-            """, (username, name, password_hash))
-            db.connection.commit()
-            return User.get_by_username(db, username)
-        except Exception as e:
-            db.connection.rollback()
-            print(f"Error creating user: {e}")
-            return None
-    
-    @staticmethod
-    def get_by_username(db, username):
-        """Get user by username"""
-        try:
-            db.cursor.execute("""
-                SELECT id, username, name, password_hash, avatar_gender, avatar_tone
-                FROM scarlet_users WHERE username = %s
-            """, (username,))
-            row = db.cursor.fetchone()
-            if row:
-                return User(
-                    id=row[0],
-                    username=row[1],
-                    name=row[2],
-                    password_hash=row[3],
-                    avatar_gender=row[4],
-                    avatar_tone=row[5]
-                )
-            return None
-        except Exception as e:
-            print(f"Error getting user: {e}")
-            return None
-    
-    def update_preferences(self, db, avatar_gender, avatar_tone):
-        """Update user preferences"""
-        try:
-            db.cursor.execute("""
-                UPDATE scarlet_users 
-                SET avatar_gender = %s, avatar_tone = %s
-                WHERE id = %s
-            """, (avatar_gender, avatar_tone, self.id))
-            db.connection.commit()
-            self.avatar_gender = avatar_gender
-            self.avatar_tone = avatar_tone
-            return True
-        except Exception as e:
-            db.connection.rollback()
-            print(f"Error updating preferences: {e}")
-            return False
 
 
+@dataclass
 class Message:
-    """Message model for Snowflake"""
-    
-    def __init__(self, id=None, user_id=None, role=None, text=None, 
-                 chat_session=None, timestamp=None):
-        self.id = id
-        self.user_id = user_id
-        self.role = role
-        self.text = text
-        self.chat_session = chat_session
-        self.timestamp = timestamp or datetime.utcnow()
-    
+    id: int
+    user_id: int
+    role: str
+    text: str
+    timestamp: datetime
+    chat_session: Optional[str] = None
+
     @staticmethod
-    def create(db, user_id, role, text, chat_session=None):
-        """Create a new message"""
-        try:
-            db.cursor.execute("""
-                INSERT INTO scarlet_messages (user_id, role, text, chat_session)
-                VALUES (%s, %s, %s, %s)
-            """, (user_id, role, text, chat_session))
-            db.connection.commit()
-            return True
-        except Exception as e:
-            db.connection.rollback()
-            raise  # <-- make sure you see it in Flask logs
+    def create(db, user_id: int, role: str, text: str, chat_session: Optional[str]) -> "Message":
+        now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        cur = db.cursor()
+        cur.execute(
+            "INSERT INTO messages (user_id, chat_session, role, text, ts) VALUES (?,?,?,?,?)",
+            (user_id, chat_session, role, text, now_iso),
+        )
+        db.commit()
+        mid = cur.lastrowid
+        return Message(
+            id=mid,
+            user_id=user_id,
+            role=role,
+            text=text,
+            chat_session=chat_session,
+            timestamp=datetime.fromisoformat(now_iso.replace("Z", "")),
+        )
 
-    
     @staticmethod
-    def get_messages(db, user_id, chat_session=None, before=None, limit=20):
-        """Get messages for a user"""
-        try:
-            query = """
-                SELECT id, user_id, role, text, chat_session, timestamp
-                FROM scarlet_messages
-                WHERE user_id = %s
-            """
-            params = [user_id]
+    def get_messages(
+        db,
+        user_id: int,
+        chat_session: Optional[str] = None,
+        before: Optional[str] = None,
+        limit: int = 20,
+    ) -> List["Message"]:
+        params = [user_id]
+        sql = "SELECT * FROM messages WHERE user_id=?"
+        if chat_session:
+            sql += " AND chat_session=?"
+            params.append(chat_session)
+        if before:
+            sql += " AND ts < ?"
+            params.append(before)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
 
-            if chat_session:
-                query += " AND (chat_session = %s OR chat_session IS NULL)"
-                params.append(chat_session)
+        cur = db.cursor()
+        cur.execute(sql, tuple(params))
+        rows = cur.fetchall()
 
-            if before:
-                query += " AND timestamp < %s"
-                params.append(before)
-
-            query += " ORDER BY timestamp DESC LIMIT %s"
-            params.append(limit)
-
-            db.cursor.execute(query, tuple(params))
-
-            messages = []
-            for row in db.cursor.fetchall():
-                messages.append(Message(
-                    id=row[0],
-                    user_id=row[1],
-                    role=row[2],
-                    text=row[3],
-                    chat_session=row[4],
-                    timestamp=row[5]
-                ))
-
-            return messages
-        except Exception as e:
-            print(f"Error getting messages: {e}")
-            return []
-
-
-
-# Initialize Snowflake database
-def init_db():
-    db = SnowflakeDB()
-    if db.connect():
-        db.init_tables()
-        return db
-    return None
-
-# Get or create Snowflake database connection
-def get_db():
-    db = SnowflakeDB()
-    db.connect()
-    return db
+        out = []
+        for r in rows:
+            ts = r["ts"]
+            try:
+                dt = datetime.fromisoformat(ts.replace("Z", ""))
+            except Exception:
+                dt = datetime.utcnow()
+            out.append(Message(
+                id=r["id"],
+                user_id=r["user_id"],
+                role=r["role"],
+                text=r["text"],
+                chat_session=r["chat_session"],
+                timestamp=dt,
+            ))
+        return out

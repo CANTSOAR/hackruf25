@@ -1,41 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
-
-<!-- Intro Splash (plays once per session) -->
-<div id="intro" class="intro hidden">
+<!-- Intro splash (plays once per session) -->
+<div id="intro" class="intro hidden" aria-hidden="true">
   <div class="intro-inner">
-    <img src="{{ url_for('static', filename='images/rutgers_r_transparent.png') }}"
-         class="intro-r" alt="R"/>
+    <img
+      class="intro-r"
+      src="{{ url_for('static', filename='images/rutgers_r_transparent.png') }}"
+      alt="R intro"
+    />
     <div class="intro-flash"></div>
   </div>
 </div>
 
-<!-- Background floaters container -->
-<div id="floaters" class="floaters" aria-hidden="true"></div>
+<section class="home-hero" style="min-height:70vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 24px;">
+  <!-- background floaters -->
+  <div id="floaters" class="floaters" aria-hidden="true"></div>
 
-<section class="home-hero relative min-h-[70vh] grid place-items-center text-center px-4">
-  <div>
-    <!-- Center hero logo -->
-    <img src="{{ url_for('static', filename='images/rutgers_r_transparent.png') }}"
-         class="hero-r mx-auto object-contain mb-4 drop-shadow-[0_0_20px_rgba(204,0,51,.6)]"
-         alt="Rutgers R"
-         onerror="this.style.display='none'">
+  <!-- hero logo -->
+  <img
+    src="{{ url_for('static', filename='images/rutgers_r_transparent.png') }}"
+    alt="Rutgers R"
+    class="hero-r"
+    style="margin-bottom:1.25rem;"
+  />
 
-    <!-- Smooth typewriter -->
-    <h1 class="text-4xl md:text-6xl font-extrabold">
-      <span id="type"></span><span class="cursor">|</span>
-    </h1>
+  <!-- Typewriter headline -->
+  <h1 class="text-5xl sm:text-6xl font-extrabold" style="line-height:1.12; margin:0 0 12px;">
+    <span id="type-left" style="color:#fff"></span>
+    <span id="type-right" style="color:var(--accent)"></span>
+    <span class="cursor">|</span>
+  </h1>
 
-    <p class="mt-3 text-zinc-400 max-w-2xl mx-auto">
-      Your AI scheduler & study co-pilot for Rutgers Students. Chat, plan, and stay Scarlet Strong!
-    </p>
+  <p style="max-width:42rem; color:#c5c7cf; margin:0 auto 22px;">
+    Your AI scheduler & study co-pilot for Rutgers students.
+  </p>
 
-    <div class="mt-6 flex items-center justify-center gap-3">
-      <a href="{{ url_for('signup') }}" class="px-6 py-3 bg-[var(--accent)] rounded-md font-semibold hover:brightness-110">Sign Up</a>
-      <a href="{{ url_for('login') }}" class="px-6 py-3 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 rounded-md">Sign In</a>
-    </div>
+  <!-- Single CTA -->
+  <a href="{{ url_for('login') }}"
+     class="neon-btn"
+     style="display:inline-flex; align-items:center; justify-content:center; padding:.75rem 1.5rem; border-radius:.75rem; font-weight:600; color:#fff; text-decoration:none;">
+    Start Messaging
+  </a>
+
+  <!-- Small signup prompt -->
+  <div style="margin-top:12px; color:#a9acb5; font-size:.95rem;">
+    New to <span style="color:#fff;">ScarletAgent</span>?
+    <a href="{{ url_for('signup') }}" style="color:var(--accent); text-decoration:none;">Sign up now</a>
   </div>
 </section>
 
-<script src="{{ url_for('static', filename='js/home.js') }}"></script>
+<!-- Page JS (typewriter + floaters + intro) -->
+<script defer src="{{ url_for('static', filename='js/home.js') }}?v=1"></script>
 {% endblock %}
