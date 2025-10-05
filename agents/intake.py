@@ -104,10 +104,6 @@ Keep it natural and complete:
 
 ## After Handoff:
 When you receive "{[\\THIS IS THE END MESSAGE/]}", respond with ONE brief line:
-- "Consider it done"
-- "I'm on it"
-- "Got it - I'll handle that"
-- "Leave it to me"
 
 Then STOP. The backend will notify them when complete.
 

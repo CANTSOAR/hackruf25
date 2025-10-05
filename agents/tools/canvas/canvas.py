@@ -18,7 +18,7 @@ class CanvasDataManager:
             user_id: The ID of the user whose data export should be loaded.
         """
         if os.environ["user_id"] is not None:
-            self.user_id = os.environ["user_id"]
+            self.user_id = int(os.environ["user_id"])
 
         self.data = self._load_data()
         if not self.data:

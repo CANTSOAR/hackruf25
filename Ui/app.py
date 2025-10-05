@@ -147,7 +147,7 @@ def login():
         user = get_user_by_username(conn(), u)
         if user and check_password_hash(user['PASSWORD_HASH'], p):
             session["user"] = u
-            os.environ["user_id"] = user["ID"]
+            os.environ["user_id"] = str(user["ID"])
             new_chat_session(user)
             return redirect(url_for("chat"))
         err = "Invalid username or password."

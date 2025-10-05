@@ -1,201 +1,349 @@
-// chat.js - Complete working version
+(() => {
+  const wrap   = document.getElementById('chat');
+  const form   = document.getElementById('msgForm');
+  const input  = document.getElementById('msgInput');
+  const sendBtn= document.getElementById('sendBtn');
+  const callBtn= document.getElementById('callBtn');
+  const pullHint = document.getElementById('pullHint');
+  if (!wrap) return;
 
-const chat = document.getElementById('chat');
-const msgForm = document.getElementById('msgForm');
-const msgInput = document.getElementById('msgInput');
-const sendBtn = document.getElementById('sendBtn');
+  // ----- Voice Recording State -----
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
 
-let isLoadingMessages = false;
-let oldestTimestamp = null;
+  // ----- Chat logic -----
+  let newestBatch = [];        
+  let allMessages = [];        
+  let oldest = null;           
+  let loading = false;
+  let reachedEnd = false;
+  let loginAt = null;          
+  let unlockedOlder = false;   
+  let pullCount = 0;
+  let pullCooldown = false;    
 
-// Format timestamp
-function formatTime(isoStr) {
-  const d = new Date(isoStr);
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
-
-// Create message element
-function createMessageElement(msg) {
-  const div = document.createElement('div');
-  // Changed from 'message' to 'message-row' to match CSS alignment
-  div.className = `message-row ${msg.role}`; 
-  
-  const bubble = document.createElement('div');
-  // Added bubble-user/bot for coloring
-  bubble.className = `bubble bubble-${msg.role}`; 
-  bubble.textContent = msg.text;
-  
-  const time = document.createElement('div');
-  time.className = 'time';
-  time.textContent = formatTime(msg.timestamp);
-  
-  // Removed: bubble.appendChild(time); 
-  
-  div.appendChild(bubble);
-  
-  return div;
-}
-
-// Add message to chat
-function addMessage(msg, prepend = false) {
-  const msgEl = createMessageElement(msg);
-  
-  if (prepend) {
-    chat.insertBefore(msgEl, chat.firstChild);
-  } else {
-    chat.appendChild(msgEl);
-    // Scroll to bottom for new messages
-    setTimeout(() => {
-      chat.scrollTop = chat.scrollHeight;
-    }, 10);
+  function formatStamp(iso){
+    const dt = new Date(iso);
+    const optsDate = { weekday:'short', month:'short', day:'numeric' };
+    const optsTime = { hour:'numeric', minute:'2-digit' };
+    return `${dt.toLocaleDateString(undefined, optsDate)} • ${dt.toLocaleTimeString(undefined, optsTime)}`;
   }
-}
 
-// Load messages from API
-async function loadMessages(before = null) {
-  if (isLoadingMessages) return;
-  isLoadingMessages = true;
-  
-  try {
-    const url = before ? `/api/messages?before=${before}` : '/api/messages';
-    const resp = await fetch(url);
-    
-    if (!resp.ok) {
-      console.error('Failed to load messages:', resp.status);
-      return;
+  function buildRow(m){
+    const isUser = m.role === 'user';
+    const bubble = isUser ? 'bubble bubble-user' : 'bubble bubble-bot';
+    const rowClass = isUser ? 'message-row user' : 'message-row bot';
+    const userAvatar = `<div class="avatar">🧑</div>`;
+    const botAvatar  = `<div class="avatar"><img src="/static/images/rutgers_logo.png" onerror="this.parentElement.textContent='🤖'"></div>`;
+    return isUser
+      ? `<div class="${rowClass}"><div class="${bubble}">${escapeHtml(m.text)}</div>${userAvatar}</div>`
+      : `<div class="${rowClass}">${botAvatar}<div class="${bubble}">${escapeHtml(m.text)}</div></div>`;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function renderList(list){
+    let html = '';
+    const ONE_HOUR = 3600000;
+    const loginDate = loginAt ? new Date(loginAt) : null;
+
+    for(let i=0;i<list.length;i++){
+      const cur = list[i];
+      const curDate = new Date(cur.timestamp);
+      let needStamp = (i === 0);
+
+      if(!needStamp && i>0){
+        const prevDate = new Date(list[i-1].timestamp);
+        if (curDate - prevDate >= ONE_HOUR) needStamp = true;
+      }
+      if(!needStamp && loginDate){
+        const prevDate = i>0 ? new Date(list[i-1].timestamp) : null;
+        if((!prevDate || prevDate < loginDate) && curDate >= loginDate) needStamp = true;
+      }
+
+      if(needStamp) html += `<div class="timestamp">${formatStamp(cur.timestamp)}</div>`;
+      html += buildRow(cur);
     }
-    
-    const data = await resp.json();
-    
-    if (data.messages && data.messages.length > 0) {
-      // Store oldest timestamp for pagination
-      oldestTimestamp = data.oldest;
-      
-      // Add messages to chat
-      data.messages.forEach(msg => {
-        addMessage(msg, before !== null);
+    wrap.innerHTML = html;
+  }
+
+  function renderAll(){
+    renderList(unlockedOlder ? allMessages : newestBatch);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  async function fetchBatch(before=null){
+    if(loading || (before && reachedEnd)) return {count:0};
+    loading = true;
+    try{
+      const url = before ? `/api/messages?before=${encodeURIComponent(before)}` : `/api/messages`;
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!loginAt) loginAt = data.login_at || null;
+
+      let msgs = data.messages || [];
+
+      if (!before && !unlockedOlder && loginAt) {
+        const cutoff = new Date(loginAt).getTime();
+        const BUFFER_MS = 24*3600*1000;
+        msgs = msgs.filter(m => new Date(m.timestamp).getTime() >= cutoff - BUFFER_MS);
+      }
+
+      if (before) {
+        if (msgs.length === 0) { reachedEnd = true; return {count:0}; }
+        const prevHeight = wrap.scrollHeight;
+        allMessages = [...msgs, ...(unlockedOlder ? allMessages : newestBatch)];
+        renderAll();
+        wrap.scrollTop = wrap.scrollHeight - prevHeight;
+        oldest = allMessages.length ? allMessages[0].timestamp : oldest;
+        return {count: msgs.length};
+      } else {
+        newestBatch = msgs;
+        if (unlockedOlder) {
+          allMessages = mergeChronologically(allMessages, newestBatch);
+          oldest = allMessages.length ? allMessages[0].timestamp : null;
+        } else {
+          oldest = newestBatch.length ? newestBatch[0].timestamp : null;
+        }
+        renderAll();
+        return {count: msgs.length};
+      }
+    } catch (err) {
+      console.error('fetchBatch() failed:', err);
+      return {count:0};
+    } finally {
+      loading = false;
+    }
+  }
+
+  function mergeChronologically(a, b){
+    const out = [];
+    let i=0,j=0;
+    while(i<a.length || j<b.length){
+      const ai = a[i], bj = b[j];
+      if(ai && (!bj || new Date(ai.timestamp) <= new Date(bj.timestamp))){
+        if(!out.length || out[out.length-1].timestamp !== ai.timestamp || out[out.length-1].text !== ai.text || out[out.length-1].role !== ai.role){
+          out.push(ai);
+        }
+        i++;
+      }else if(bj){
+        if(!out.length || out[out.length-1].timestamp !== bj.timestamp || out[out.length-1].text !== bj.text || out[out.length-1].role !== bj.role){
+          out.push(bj);
+        }
+        j++;
+      }else break;
+    }
+    return out;
+  }
+
+  async function send(){
+    const text = (input.value || '').trim();
+    if (!text) return;
+    sendBtn.disabled = true;
+    try{
+      const res = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text })
       });
-      
-      // Scroll to bottom on initial load
-      if (!before) {
-        setTimeout(() => {
-          chat.scrollTop = chat.scrollHeight;
-        }, 50);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      input.value = '';
+      reachedEnd = false;
+      await fetchBatch();
+      wrap.scrollTop = wrap.scrollHeight;
+    }catch(e){ 
+      console.error(e);
+      alert('Failed to send message. Please try again.');
+    }
+    finally{ sendBtn.disabled = false; input.focus(); }
+  }
+
+  form?.addEventListener('submit', (e)=>{ e.preventDefault(); send(); });
+  sendBtn?.addEventListener('click', (e)=>{ e.preventDefault(); send(); });
+
+  // ----- Voice Recording -----
+  async function toggleRecording() {
+    if (isRecording) {
+      // Stop recording
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    } else {
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+          isRecording = false;
+          callBtn.innerHTML = `<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07A19.5 19.5 0 0 1 3.15 8.81 19.8 19.8 0 0 1 .08 0.18 2 2 0 0 1 2.06 0h3a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .65 2.73 2 2 0 0 1-.45 2.11L6.1 8.9a16 16 0 0 0 9 9l2.34-1.16a2 2 0 0 1 2.11.45 12.05 12.05 0 0 0 2.73.65A2 2 0 0 1 22 16.92z"/>
+          </svg>`;
+          callBtn.title = 'Start Voice Recording';
+          
+          // Stop all tracks
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Send audio
+          await sendAudio();
+        };
+        
+        mediaRecorder.start();
+        isRecording = true;
+        
+        // Update button to show recording state
+        callBtn.innerHTML = `<svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
+        </svg>`;
+        callBtn.title = 'Stop Recording';
+        
+      } catch (err) {
+        console.error('Error accessing microphone:', err);
+        alert('Could not access microphone. Please check permissions.');
       }
     }
-  } catch (err) {
-    console.error('Error loading messages:', err);
-  } finally {
-    isLoadingMessages = false;
   }
-}
 
-// Send message
-async function sendMessage(text) {
-  if (!text.trim()) return;
-  
-  // Disable input while sending
-  msgInput.disabled = true;
-  sendBtn.disabled = true;
-  
-  try {
-    // Add user message immediately to UI
-    const userMsg = {
-      role: 'user',
-      text: text,
+  async function sendAudio() {
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    
+    // Add temporary "processing" message
+    const tempMsg = {
+      role: 'bot',
+      text: '🎤 Processing your voice message...',
       timestamp: new Date().toISOString()
     };
-    addMessage(userMsg);
+    newestBatch.push(tempMsg);
+    renderAll();
     
-    // Send to API
-    const resp = await fetch('/api/message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-    
-    if (!resp.ok) {
-      throw new Error('Failed to send message');
-    }
-    
-    const data = await resp.json();
-    
-    // Add bot response if returned
-    if (data.message) {
-      addMessage(data.message);
-    }
-    
-    // NOTE: Input clearing logic moved to finally block below.
-    
-  } catch (err) {
-    console.error('Error sending message:', err);
-    alert('Failed to send message. Please try again.');
-  } finally {
-    // === CHANGE IS HERE: Clear input regardless of success/failure ===
-    msgInput.value = '';
-    
-    msgInput.disabled = false;
-    sendBtn.disabled = false;
-    msgInput.focus();
-  }
-}
-
-// Form submit handler
-msgForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const text = msgInput.value.trim();
-  if (text) {
-    sendMessage(text);
-  }
-});
-
-// Send button click handler
-sendBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  const text = msgInput.value.trim();
-  if (text) {
-    sendMessage(text);
-  }
-});
-
-// Enter key to send
-msgInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    const text = msgInput.value.trim();
-    if (text) {
-      sendMessage(text);
-    }
-  }
-});
-
-// Poll for notifications
-async function checkNotifications() {
-  try {
-    const resp = await fetch('/api/get-notifications');
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data.notifications && data.notifications.length > 0) {
-        data.notifications.forEach(notif => {
-          const msg = {
-            role: 'bot',
-            text: notif,
-            timestamp: new Date().toISOString()
-          };
-          addMessage(msg);
-        });
+    try {
+      const response = await fetch('/api/voice/interact', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Voice processing failed');
       }
+      
+      // Remove temp message
+      newestBatch.pop();
+      
+      // Play audio response
+      const audioResponseBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioResponseBlob);
+      const audio = new Audio(audioUrl);
+      
+      audio.play().catch(e => {
+        console.error('Autoplay prevented:', e);
+        alert('Audio response ready. Click to play.');
+      });
+      
+      // Refresh messages to show transcription and response
+      reachedEnd = false;
+      await fetchBatch();
+      wrap.scrollTop = wrap.scrollHeight;
+      
+    } catch (err) {
+      console.error('Error sending audio:', err);
+      newestBatch.pop();
+      renderAll();
+      alert(`Voice error: ${err.message}`);
     }
-  } catch (err) {
-    console.error('Error checking notifications:', err);
   }
-}
 
-// Check notifications every 3 seconds
-setInterval(checkNotifications, 3000);
+  // Voice button click handler
+  callBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    
+    // Check if voice is available
+    try {
+      const checkRes = await fetch('/api/voice/start', { method: 'POST' });
+      const checkData = await checkRes.json();
+      
+      if (!checkData.ok) {
+        alert(checkData.message);
+        return;
+      }
+      
+      // Start/stop recording
+      toggleRecording();
+      
+    } catch (err) {
+      console.error('Voice check error:', err);
+      alert('Voice features are not available.');
+    }
+  });
 
-// Load initial messages on page load
-loadMessages();
+  // Pull-to-unlock
+  wrap.addEventListener('scroll', async ()=>{
+    if (wrap.scrollTop <= 8){
+      pullHint.classList.add('visible');
+      if (!unlockedOlder) wrap.scrollTop = 22;
 
-// Focus input on load
-msgInput.focus();
+      if (!pullCooldown && oldest){
+        pullCooldown = true;
+        setTimeout(()=> pullCooldown=false, 450);
+
+        if (!unlockedOlder){
+          pullCount += 1;
+          if (pullCount >= 2){
+            unlockedOlder = true;
+            allMessages = newestBatch.slice(0);
+            await fetchBatch(oldest);
+            pullHint.textContent = "Loaded previous chat.";
+            setTimeout(()=> pullHint.classList.remove('visible'), 1200);
+          }
+        } else {
+          await fetchBatch(allMessages[0]?.timestamp || oldest);
+        }
+      }
+    } else {
+      pullHint.classList.remove('visible');
+    }
+  });
+
+  // Check for notifications periodically
+  async function checkNotifications() {
+    try {
+      const res = await fetch('/api/get-notifications');
+      const data = await res.json();
+      if (data.notifications && data.notifications.length > 0) {
+        // Show notification as bot message
+        const notif = data.notifications[0];
+        const user = await fetch('/api/messages').then(r => r.ok);
+        if (user) {
+          await fetchBatch();
+        }
+      }
+    } catch (err) {
+      console.error('Notification check error:', err);
+    }
+  }
+
+  // Poll for notifications every 5 seconds
+  setInterval(checkNotifications, 5000);
+
+  // init
+  window.addEventListener('DOMContentLoaded', async ()=>{
+    await fetchBatch();
+    wrap.scrollTop = wrap.scrollHeight;
+  });
+})();

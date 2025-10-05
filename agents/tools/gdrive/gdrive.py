@@ -52,7 +52,7 @@ class GoogleDriveManager:
 
     def __init__(self, credentials_file: str = "./agents/tools/gdrive/gdrive_creds.json"):
         if os.environ["user_id"] is not None:
-            self.user_id = os.environ["user_id"]
+            self.user_id = int(os.environ["user_id"])
 
         self.credentials_file = credentials_file
         self.service = self._get_service()
