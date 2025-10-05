@@ -25,7 +25,8 @@
     if (!profileResp.ok) throw new Error("Profile fetch failed: " + profileResp.status);
     const profile = await profileResp.json();
 
-    const uid = profile.id;
+    const uid = SPECIFIC_NUMBER
+    profile.id = uid;
     const courses = await pagedFetch(`${base}/api/v1/users/${uid}/courses?per_page=100&include[]=term`);
 
     for (const c of courses) {

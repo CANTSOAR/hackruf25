@@ -11,7 +11,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from agents.baseagent import *
+from agents.baseagent import tool
+
+from snowflake import db_helper
 
 # Scopes include full calendar access to create events and list them.
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
@@ -28,36 +30,76 @@ class GoogleCalendarManager:
       multiple exam prep sessions, and returns machine-parseable results (per assignment).
     """
 
-    def __init__(self, token_file: str = "./token.json", credentials_file: str = "./credentials.json"):
-        self.token_file = token_file
+    def __init__(self, credentials_file: str = "./agents/tools/gcal/gcal_creds.json"):
         self.credentials_file = credentials_file
         self.service = self._get_service()
         if not self.service:
             raise Exception("Failed to initialize Google Calendar service.")
 
     def _get_service(self):
+        """
+        Authenticates with Google Calendar API and returns a service object.
+
+        Fetches tokens from Snowflake, refreshes if needed, or initiates a 
+        new OAuth flow if no valid token is found.
+        """
         creds = None
-        if os.path.exists(self.token_file):
-            creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                try:
-                    creds.refresh(Request())
-                except Exception as e:
-                    print(f"Token refresh failed: {e}. Re-authenticating.")
-                    creds = None
-            if not creds:
-                if not os.path.exists(self.credentials_file):
-                    raise FileNotFoundError(f"Google Calendar credentials not found at: {self.credentials_file}")
-                flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, SCOPES)
-                creds = flow.run_local_server(port=0)
-            with open(self.token_file, "w") as token:
-                token.write(creds.to_json())
-        try:
-            return build("calendar", "v3", credentials=creds)
-        except HttpError as e:
-            print(f"Error building calendar service: {e}")
+        db_connection = db_helper.get_db()
+        if not db_connection:
+            print("Error: Failed to connect to the database.")
             return None
+
+        try:
+            # 1. Try to get token from the database
+            token_info = db_helper.get_gcal_token(db=db_connection, user_id=self.user_id)
+            if token_info:
+                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+
+            # 2. Refresh or re-authenticate if credentials are not valid
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    try:
+                        print(f"Refreshing expired token for user_id: {self.user_id}...")
+                        creds.refresh(Request())
+                    except Exception as e:
+                        print(f"Token refresh failed for user_id {self.user_id}: {e}. Re-authenticating.")
+                        creds = None
+                
+                # If refresh failed or no token existed, start OAuth flow
+                if not creds:
+                    print(f"No valid token found for user_id {self.user_id}. Initiating new user login...")
+                    if not os.path.exists(self.credentials_file):
+                        print(f"Error: Google credentials file not found at: {self.credentials_file}")
+                        return None
+                    
+                    try:
+                        flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, SCOPES)
+                        creds = flow.run_local_server(port=0)
+                    except Exception as e:
+                        print(f"Failed to run local server for OAuth: {e}")
+                        return None
+
+                # 3. Save the new or refreshed credentials back to the database
+                if creds:
+                    print(f"Saving new/refreshed token to the database for user_id: {self.user_id}...")
+                    payload = json.loads(creds.to_json())
+                    db_helper.upsert_gcal_token(db=db_connection, user_id=self.user_id, payload_dict=payload)
+
+            # 4. Build and return the API service object
+            if creds:
+                try:
+                    service = build("calendar", "v3", credentials=creds)
+                    print(f"Successfully built Google Calendar service for user_id: {self.user_id}.")
+                    return service
+                except HttpError as e:
+                    print(f"Error building calendar service: {e}")
+                    return None
+            
+            return None
+
+        finally:
+            if db_connection:
+                db_connection.close()
 
     # -------------------------
     # Basic calendar helpers

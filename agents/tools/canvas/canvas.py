@@ -4,9 +4,7 @@ import re
 from typing import List, Dict, Any, Optional
 
 from agents.baseagent import *
-
-# This ID would typically be fetched based on the authenticated user.
-USER_CANVAS_ID = 535680
+from snowflake import db_helper
 
 class CanvasDataManager:
     """Manages loading and querying a user's Canvas data export."""
@@ -24,18 +22,27 @@ class CanvasDataManager:
             raise FileNotFoundError(f"Could not load or parse data for user {self.user_id}")
 
     def _load_data(self) -> Dict[str, Any]:
-        """Loads and parses the Canvas data from a JSON file."""
+        """Loads the Canvas data from the Snowflake database."""
+        db_connection = db_helper.get_db()
+        if not db_connection:
+            print("Error: Failed to connect to the database.")
+            return {}
+
         try:
-            # NOTE: Adjust this file path if your project structure is different.
-            file_path = f"./canvas_extension/export_server/exports/canvas_export_{self.user_id}.json"
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            print(f"Error: Export file for user {self.user_id} not found at {file_path}.")
+            # Fetch the canvas payload using the user_id
+            canvas_data = db_helper.get_canvas_lms_payload(db=db_connection, user_id=self.user_id)
+            if not canvas_data:
+                print(f"Error: Canvas data for user {self.user_id} not found in the database.")
+                return {}
+            
+            return canvas_data
+
+        except Exception as e:
+            print(f"An error occurred while fetching Canvas data for user {self.user_id}: {e}")
             return {}
-        except json.JSONDecodeError:
-            print(f"Error: Failed to decode JSON from the export file for user {self.user_id}.")
-            return {}
+        finally:
+            if db_connection:
+                db_connection.close()
             
     @staticmethod
     def _clean_html(raw_html: str) -> str:

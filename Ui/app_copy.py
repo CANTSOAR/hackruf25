@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 
-from Ui.models import init_db, get_db, User, Message
+from snowflake.db_helper import init_db, get_db, User, Message
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.update(
