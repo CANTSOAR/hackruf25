@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ title or "ScarletAgent" }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+<header class="glassbar sticky top-0 z-40">
+  <div class="max-w-5xl mx-auto flex items-center justify-between px-4 py-3">
+    <div class="font-black text-xl leading-none select-none">
+      <span class="text-white">Scarlet</span><span class="text-[var(--accent)]">Agent</span>
+    </div>
+    <nav class="flex items-center gap-3 text-sm">
+      <a href="{{ url_for('home') }}" class="hover:opacity-80">Home</a>
+      {% if session.get('user') %}
+        <a href="{{ url_for('chat') }}" class="hover:opacity-80">Messages</a>
+        <form action="{{ url_for('logout') }}" method="post" class="inline">
+          <button class="px-3 py-1.5 bg-zinc-800/60 rounded-md hover:bg-zinc-700">Logout</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('login') }}" class="px-3 py-1.5 bg-[var(--accent)] rounded-md hover:brightness-110 font-semibold">Sign In</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+{% block content %}{% endblock %}
+</body>
+</html>
