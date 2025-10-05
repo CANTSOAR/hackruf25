@@ -51,6 +51,9 @@ class GoogleDriveManager:
     ]
 
     def __init__(self, credentials_file: str = "./agents/tools/gdrive/gdrive_creds.json"):
+        if os.environ["user_id"] is not None:
+            self.user_id = os.environ["user_id"]
+
         self.credentials_file = credentials_file
         self.service = self._get_service()
         if not self.service:
@@ -73,7 +76,7 @@ class GoogleDriveManager:
             # 1. Try to get token from the database
             token_info = db_helper.get_gdrive_token(db=db_connection, user_id=self.user_id)
             if token_info:
-                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+                creds = Credentials.from_authorized_user_info(token_info, self.SCOPES)
 
             # 2. Refresh or re-authenticate if credentials are not valid
             if not creds or not creds.valid:
@@ -93,7 +96,7 @@ class GoogleDriveManager:
                         return None
                     
                     try:
-                        flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, SCOPES)
+                        flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, self.SCOPES)
                         creds = flow.run_local_server(port=0)
                     except Exception as e:
                         print(f"Failed to run local server for OAuth: {e}")

@@ -2,6 +2,7 @@ import json
 import datetime as dt
 import re
 from typing import List, Dict, Any, Optional
+import os
 
 from agents.baseagent import *
 from snowflake import db_helper
@@ -9,14 +10,16 @@ from snowflake import db_helper
 class CanvasDataManager:
     """Manages loading and querying a user's Canvas data export."""
 
-    def __init__(self, user_id: int):
+    def __init__(self):
         """
         Initializes the manager and loads the user's data from the JSON file.
         
         Args:
             user_id: The ID of the user whose data export should be loaded.
         """
-        self.user_id = user_id
+        if os.environ["user_id"] is not None:
+            self.user_id = os.environ["user_id"]
+
         self.data = self._load_data()
         if not self.data:
             raise FileNotFoundError(f"Could not load or parse data for user {self.user_id}")
@@ -168,7 +171,7 @@ def tool_get_user_profile() -> Dict[str, Any]:
     Retrieves the user's profile information, including name, email, and bio.
     """
     try:
-        manager = CanvasDataManager(USER_CANVAS_ID)
+        manager = CanvasDataManager()
         return manager.get_user_profile()
     except Exception as e:
         return f"Error getting user profile: {e}"
@@ -180,7 +183,7 @@ def tool_get_current_courses() -> List[Dict[str, Any]]:
     This is useful for finding out which courses to query for assignments or files.
     """
     try:
-        manager = CanvasDataManager(USER_CANVAS_ID)
+        manager = CanvasDataManager()
         return manager.get_current_courses()
     except Exception as e:
         return f"Error getting current courses: {e}"
@@ -194,7 +197,7 @@ def tool_get_outstanding_assignments(course_id: Optional[int] = None) -> List[Di
                                    If omitted, gets outstanding assignments from ALL active courses.
     """
     try:
-        manager = CanvasDataManager(USER_CANVAS_ID)
+        manager = CanvasDataManager()
         return manager.get_outstanding_assignments(course_id)
     except Exception as e:
         return f"Error getting outstanding assignments: {e}"
@@ -207,7 +210,7 @@ def tool_get_all_files_for_course(course_id: int) -> List[Dict[str, Any]]:
         course_id (int): The ID of the course to retrieve files from. Get the ID from 'tool_get_current_courses'.
     """
     try:
-        manager = CanvasDataManager(USER_CANVAS_ID)
+        manager = CanvasDataManager()
         return manager.get_all_files_for_course(course_id)
     except Exception as e:
         return f"Error getting files for course {course_id}: {e}"
@@ -220,7 +223,7 @@ def tool_get_all_announcements(course_id: int) -> List[Dict[str, Any]]:
         course_id (int): The ID of the course to retrieve announcements from. Get the ID from 'tool_get_current_courses'.
     """
     try:
-        manager = CanvasDataManager(USER_CANVAS_ID)
+        manager = CanvasDataManager()
         return manager.get_all_announcements(course_id)
     except Exception as e:
         return f"Error getting announcements for course {course_id}: {e}"
@@ -230,7 +233,7 @@ if __name__ == '__main__':
     # Example usage of the new CanvasDataManager class
     try:
         print("--- Initializing Canvas Data Manager ---")
-        manager = CanvasDataManager(USER_CANVAS_ID)
+        manager = CanvasDataManager()
         print("Manager initialized successfully.\n")
 
         print("--- Getting User Profile ---")

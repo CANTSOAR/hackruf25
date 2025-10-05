@@ -31,6 +31,9 @@ class GoogleCalendarManager:
     """
 
     def __init__(self, credentials_file: str = "./agents/tools/gcal/gcal_creds.json"):
+        if os.environ["user_id"] is not None:
+            self.user_id = os.environ["user_id"]
+        
         self.credentials_file = credentials_file
         self.service = self._get_service()
         if not self.service:

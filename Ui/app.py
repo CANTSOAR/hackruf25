@@ -147,6 +147,7 @@ def login():
         user = get_user_by_username(conn(), u)
         if user and check_password_hash(user['PASSWORD_HASH'], p):
             session["user"] = u
+            os.environ["user_id"] = user["ID"]
             new_chat_session(user)
             return redirect(url_for("chat"))
         err = "Invalid username or password."
@@ -353,7 +354,6 @@ def e404(_):
     return render_template("base.html", title="404 Not Found"), 404
 
 if __name__ == "__main__":
-    os.makedirs("static/images", exist_ok=True)
     print("\n" + "="*50)
     print("🎓 ScarletAgent → http://localhost:5000")
     print("="*50)
