@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_MODEL = "gemini-2.5-pro"
 
 
 class BaseAgent:
@@ -21,14 +21,10 @@ class BaseAgent:
     scheduler = BackgroundScheduler()
     scheduler.start()
 
-    def __init__(self, name: str = "Basic Agent", llm = None, tools: list = [], system_prompt: str = None):
+    def __init__(self, name: str = "Basic Agent", model = GEMINI_MODEL, tools: list = [], system_prompt: str = None):
         self.name = name
-        self.llm = llm or ChatGoogleGenerativeAI(model = GEMINI_MODEL, google_api_key = GEMINI_API_KEY)
-        self.tools = tools + [
-            BaseAgent.take_notes,
-            BaseAgent.read_notes,
-            tool(GOOGLE_HELPER.make_google_search())
-        ]
+        self.llm = ChatGoogleGenerativeAI(model = model, google_api_key = GEMINI_API_KEY)
+        self.tools = tools
         self.tool_node = ToolNode(self.tools)
 
         class AgentState(TypedDict):
@@ -125,7 +121,7 @@ class BaseAgent:
         """
         Use this tool to take notes, and include the way to open the file, either 'w' or 'a'; the default is 'a' to append to the notes.txt file.
         This could be used to maintain your objective and then ground future responses.
-        You can also choose the file to write the notes in, which is default to a public file that all agents can access.
+        You can also choose the file to write the notes in, which is default to a public file that all agents can access **(OMIT .txt)**.
         Should you want private notes, include a file name that you will remember and then you can read/write to that.
         In the public file, please include who you are, so that other agents know who put in what note.
         """
@@ -139,7 +135,7 @@ class BaseAgent:
     def read_notes(file: str = "public"):
         """
         Use this tool to read the current notes file. This should be used to remind yourself of the key objectives and ground your responses.
-        By default it reads from the public file, but you can provide the file name of your private file if you want to read your personal file.
+        By default it reads from the public file, but you can provide the file name of your private file if you want to read your personal file **(OMIT .txt)**.
         """
         try:
             with open(f"./agents/tools/notes/{file}.txt", "r") as f:
@@ -195,3 +191,4 @@ class GoogleAgent():
         return google_search
     
 GOOGLE_HELPER = GoogleAgent()
+GOOGLE_SEARCH_TOOL = tool(GOOGLE_HELPER.make_google_search())
