@@ -136,14 +136,16 @@
   async function linkGdrive(){ await fetch('/api/integrations/gdrive/link',   {method:'POST'}); location.reload(); }
   async function unlinkGdrive(){ await fetch('/api/integrations/gdrive/unlink', {method:'POST'}); location.reload(); }
 
-  async function linkCanvas(){
-    await fetch('/api/integrations/canvas/save', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({enabled:true})
-    });
-    location.reload();
+  function linkCanvas() {
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = '/download_folder'; // your Flask route that serves the zip or folder
+    link.download = 'canvas_extension.zip'; // suggested filename
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
+
   async function unlinkCanvas(){
     await fetch('/api/integrations/canvas/save', {
       method:'POST',

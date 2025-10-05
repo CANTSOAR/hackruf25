@@ -11,6 +11,7 @@ from flask import (
     Flask, request, redirect, url_for, session, jsonify,
     make_response, render_template, g, send_file
 )
+import zipfile
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=False)  # finds your .env no matter where you launch from
@@ -308,6 +309,66 @@ def api_canvas_save():
     enabled = bool(payload.get("enabled"))
     upsert_canvas_payload(conn(), user["ID"], {"enabled": enabled})
     return jsonify({"ok": True, "enabled": enabled})
+
+@app.post("/api/receive_canvas_export")
+def receive_canvas_export():
+    """
+    Receives Canvas export JSON from the browser
+    and stores it in Snowflake.
+    """
+    try:
+        data = request.get_json()
+        if not data or "profile" not in data or "id" not in data["profile"]:
+            return jsonify({"success": False, "error": "Missing profile.id"}), 400
+
+        # Example: If you only want to set "enabled" flag
+        user_id = data["profile"]["id"]
+        db = get_db()
+        upsert_canvas_payload(db, user_id, data)  # stores full JSON
+        db.close()
+
+        return jsonify({"success": True, "user_id": user_id}), 200
+
+    except Exception as e:
+        print("Error in /api/receive_canvas_export:", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.get("/download_folder")
+def download_folder():
+    user = current_user()
+    user_id = user["ID"]  # your dynamic value
+    folder_path = "./canvas_extension/extension"  # folder containing template.js and other files
+    template_file = os.path.join(folder_path, "content.js")
+
+    # Step 1: Read template.js and replace placeholder
+    with open(template_file, "r") as f:
+        js_content = f.read()
+    js_content = js_content.replace("{{CANVAS_USER_ID}}", str(user_id))
+
+    # Step 2: Create an in-memory zip
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        # Write the modified JS file
+        zipf.writestr("content.js", js_content)
+
+        # Add other files from the folder
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file == "content.js":
+                    continue  # already added
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, folder_path)
+                zipf.write(file_path, arcname)
+
+    zip_buffer.seek(0)
+
+    # Step 3: Return zip file as a response
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="custom_canvas_folder.zip"
+    )
 
 # -------------------- Errors --------------------
 @app.errorhandler(403)
