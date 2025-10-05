@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="max-w-4xl mx-auto px-4 py-10">
+
+  <!-- Header -->
+  <h1 class="text-2xl sm:text-3xl font-extrabold text-center mb-2">Profile Settings</h1>
+  <p class="text-center text-zinc-400 mb-8">Manage your account and integrations</p>
+
+  <!-- Personal info card -->
+  <div class="glass border border-zinc-800 rounded-2xl overflow-hidden mb-6">
+    <!-- header band -->
+    <div class="bg-[var(--accent)]/95 px-5 py-4 flex items-center gap-3">
+      <div class="h-10 w-10 rounded-full bg-white/95 grid place-items-center">
+        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="#0f0f14" stroke-width="2">
+          <circle cx="12" cy="8" r="3"></circle>
+          <path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="font-semibold">Personal Information</div>
+        <div class="text-sm opacity-90">Update your profile details</div>
+      </div>
+    </div>
+
+    <!-- body -->
+    <div class="p-5 space-y-4">
+      <form method="post" action="#" onsubmit="event.preventDefault(); alert('Save functionality coming soon!');">
+        <!-- name + email -->
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-zinc-400 mb-1">Full Name</label>
+            <input class="w-full px-3 py-2 rounded-lg bg-zinc-900/70 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+                   placeholder="{{ user.name or 'Your name' }}"
+                   value="{{ user.name or '' }}" />
+          </div>
+          <div>
+            <label class="block text-sm text-zinc-400 mb-1">Email Address</label>
+            <input class="w-full px-3 py-2 rounded-lg bg-zinc-900/70 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+                   placeholder="{{ user.email or 'you@rutgers.edu' }}"
+                   value="{{ user.email or '' }}" />
+          </div>
+        </div>
+
+        <!-- password -->
+        <div>
+          <label class="block text-sm text-zinc-400 mb-1">Password</label>
+          <div class="relative">
+            <input type="password"
+                   class="w-full px-3 py-2 pr-10 rounded-lg bg-zinc-900/70 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+                   placeholder="••••••••"
+                   value="••••••••" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 opacity-70">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- actions -->
+        <div class="flex items-center gap-3 pt-2">
+          <button type="button"
+                  class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700">Cancel</button>
+          <button type="submit"
+                  class="px-4 py-2 rounded-lg bg-[var(--accent)] hover:brightness-110 font-semibold">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Connections card -->
+  <div class="glass border border-zinc-800 rounded-2xl overflow-hidden">
+    <div class="bg-[var(--accent)]/95 px-5 py-3 font-semibold">
+      Connections
+      <span class="block text-xs font-normal opacity-90">Manage your integrations</span>
+    </div>
+
+    <div class="p-4 space-y-4">
+
+      <!-- Canvas LMS -->
+      <div class="glass border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-lg bg-orange-500/20 grid place-items-center">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M4 4v15.5"/>
+              <path d="M20 22V6a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 6.5"/>
+            </svg>
+          </div>
+          <div>
+            <div class="font-semibold">Canvas LMS</div>
+            <div class="text-sm text-zinc-400">Learning management</div>
+          </div>
+        </div>
+        <button class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700">Unlink</button>
+      </div>
+
+      <!-- Google Calendar -->
+      <div class="glass border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-lg bg-green-500/20 grid place-items-center">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+              <path d="M16 2v4M8 2v4M3 10h18"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="font-semibold">Google Calendar</div>
+            <div class="text-sm text-zinc-400">Schedule management</div>
+          </div>
+        </div>
+        <button class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700">Unlink</button>
+      </div>
+
+      <!-- Google Drive -->
+      <div class="glass border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-lg bg-blue-500/20 grid place-items-center">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L10 4"/>
+              <path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 1 0 7.07 7.07L14 20"/>
+            </svg>
+          </div>
+          <div>
+            <div class="font-semibold">Google Drive</div>
+            <div class="text-sm text-zinc-400">Cloud storage access</div>
+          </div>
+        </div>
+        <button class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700">Unlink</button>
+      </div>
+
+    </div>
+  </div>
+</section>
+{% endblock %}
