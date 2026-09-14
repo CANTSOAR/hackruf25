@@ -178,6 +178,8 @@ def profile():
     gcal_connected   = bool(get_gcal_token(conn(), uid))
     gdrive_connected = bool(get_gdrive_token(conn(), uid))
 
+    print(uid, user["USER"])
+
     return render_template(
         "profile.html",
         title="Profile Settings",
